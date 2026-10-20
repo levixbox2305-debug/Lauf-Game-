@@ -1,0 +1,20 @@
+export const colors = {
+  background: '#F4F1E8',
+  surface: '#FFFFFF',
+  text: '#1F2A24',
+  textMuted: '#6B756F',
+  primary: '#2F7D4F',
+  primaryDark: '#21603B',
+  danger: '#C2483D',
+  energy: '#E8A317',
+  border: '#E2DDCF',
+
+  sea: '#4BA3C7',
+  shallowWater: '#6BBBD8',
+  foam: '#E8F6FB',
+  grass: '#7CC46A',
+  grassAlt: '#72BA60',
+  grassEdge: '#5FA24F',
+  cliffLeft: '#9C6B3F',
+  cliffRight: '#7D5330',
+};
