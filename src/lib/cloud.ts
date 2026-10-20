@@ -8,8 +8,9 @@ import { migrate, type GameState } from './game';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 if (Platform.OS !== 'web') require('react-native-url-polyfill/auto');
 
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+// Accept the API URL as copied from the dashboard too, e.g. with a trailing /rest/v1/.
+const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
+const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
 /** Null when no Supabase project is configured; the app then simply runs without backup. */
 export const supabase: SupabaseClient | null =
