@@ -13,7 +13,18 @@ Lauf-Tracker, so simpel wie eine normale Running-App – aber jeder Kilometer l�
   Glocke, Koinobori, Steingarten, Winkekatze, Fuji, Gold-Torii, Gold-Pagode.
 - **Verlauf**: Level, Kilometer pro Woche, alle Läufe mit Routen-Skizze.
 
-## Auf dem Handy starten
+## Als Web-App aufs iPhone (kostenlos)
+
+Bei jedem Push auf `main` baut GitHub die Web-Version und veröffentlicht sie auf GitHub Pages
+(`.github/workflows/pages.yml`). Einmalig im Repo: **Settings → Pages → Source: GitHub Actions**.
+
+Danach auf dem iPhone `https://<dein-name>.github.io/<repo>/` in Safari öffnen → Teilen → **Zum Home-Bildschirm**.
+Während eines Laufs bleibt der Bildschirm an, denn im Browser misst GPS nur, solange die App offen ist.
+Spielstand und Läufe liegen nur auf dem Gerät.
+
+Lokal bauen: `BASE_URL=/laufwelt npm run build:web` → Ordner `dist/`.
+
+## Mit Expo Go starten
 
 1. Auf dem Handy die App **Expo Go** installieren (App Store / Play Store).
 2. Am Computer (Node.js ≥ 20 nötig):

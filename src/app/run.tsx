@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ItemThumb } from '../components/ItemThumb';
@@ -18,6 +18,7 @@ import {
 } from '../lib/game';
 import { formatDuration, formatKm, formatPace } from '../lib/geo';
 import type { ActiveRun } from '../lib/storage';
+import { useScreenAwake } from '../lib/useScreenAwake';
 import { elapsedSeconds, finishRun, pauseRun, resumeRun, startRun, subscribe, toRoute, type FinishedRun } from '../lib/tracker';
 import { useGame } from '../state/GameProvider';
 import { colors, fonts } from '../theme';
@@ -147,6 +148,7 @@ function Active({ run, onFinish }: { run: ActiveRun; onFinish: (run: FinishedRun
   const [now, setNow] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const paused = run.pausedAt !== null;
+  useScreenAwake(true);
 
   useEffect(() => {
     if (paused) return;
@@ -186,7 +188,11 @@ function Active({ run, onFinish }: { run: ActiveRun; onFinish: (run: FinishedRun
         )}
       </View>
       {run.mode === 'foreground' && (
-        <Text style={styles.hint}>Lass die App geöffnet – Hintergrund-Tracking ist hier nicht verfügbar.</Text>
+        <Text style={styles.hint}>
+          {Platform.OS === 'web'
+            ? 'Der Bildschirm bleibt an. Lass die App offen – im Browser misst GPS nur im Vordergrund.'
+            : 'Lass die App geöffnet – Hintergrund-Tracking ist hier nicht verfügbar.'}
+        </Text>
       )}
 
       <View style={styles.controls}>
