@@ -13,23 +13,20 @@ Lauf-Tracker, so simpel wie eine normale Running-App – aber jeder Kilometer l�
   Glocke, Koinobori, Steingarten, Winkekatze, Fuji, Gold-Torii, Gold-Pagode.
 - **Verlauf**: Level, Kilometer pro Woche, alle Läufe mit Routen-Skizze.
 
-## Starten
+## Auf dem Handy starten
 
-```bash
-npm install
-npx expo start
-```
+1. Auf dem Handy die App **Expo Go** installieren (App Store / Play Store).
+2. Am Computer (Node.js ≥ 20 nötig):
+   ```bash
+   npm install
+   npx expo start
+   ```
+3. QR-Code scannen – iPhone mit der Kamera-App, Android direkt in Expo Go.
+   Handy und Computer müssen im selben WLAN sein (sonst `npx expo start --tunnel`).
 
-Skia (für die Voxel-Welt) ist nicht in Expo Go enthalten – du brauchst einen **Development Build**:
-
-```bash
-npx expo run:android        # lokal mit Android Studio / Gerät
-# oder in der Cloud:
-npx eas-cli@latest build --profile development --platform android
-```
-
-Der Development Build kann auch im Hintergrund tracken (gesperrter Bildschirm).
-Im Dev-Modus gibt es auf dem Lauf-Tab „Testlauf simulieren“.
+In Expo Go misst die App nur, solange sie geöffnet ist. Für Tracking bei gesperrtem Bildschirm
+braucht es einen eigenen Build (z. B. `npx eas-cli@latest build --profile development --platform android`).
+Im Dev-Modus gibt es auf dem Lauf-Tab Buttons für Testläufe.
 
 ## Aufbau
 
