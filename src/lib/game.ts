@@ -1,6 +1,6 @@
 // Game rules: how running turns into energy and what energy can build.
 
-export type ItemId =
+export type ShopItemId =
   | 'path'
   | 'bamboo'
   | 'sakura'
@@ -13,12 +13,19 @@ export type ItemId =
   | 'pagoda'
   | 'castle';
 
+/** Collectibles that can only be earned through weekly streaks. */
+export type StreakItemId = 'bell' | 'koinobori' | 'zen' | 'cat' | 'fuji' | 'goldtorii' | 'goldpagoda';
+
+export type ItemId = ShopItemId | StreakItemId;
+
 export type ItemDef = {
   id: ItemId;
   name: string;
   cost: number;
   /** Total kilometres run before this item becomes available. */
   unlockKm: number;
+  /** Set for collectibles: the streak length (in weeks) that awards one. */
+  streakWeeks?: number;
 };
 
 export const ITEMS: ItemDef[] = [
@@ -35,12 +42,28 @@ export const ITEMS: ItemDef[] = [
   { id: 'castle', name: 'Burg', cost: 200, unlockKm: 42.2 },
 ];
 
-export const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i])) as Record<ItemId, ItemDef>;
+export const STREAK_ITEMS: ItemDef[] = [
+  { id: 'bell', name: 'Glocke', cost: 0, unlockKm: 0, streakWeeks: 1 },
+  { id: 'koinobori', name: 'Koinobori', cost: 0, unlockKm: 0, streakWeeks: 2 },
+  { id: 'zen', name: 'Steingarten', cost: 0, unlockKm: 0, streakWeeks: 4 },
+  { id: 'cat', name: 'Winkekatze', cost: 0, unlockKm: 0, streakWeeks: 8 },
+  { id: 'fuji', name: 'Fuji', cost: 0, unlockKm: 0, streakWeeks: 12 },
+  { id: 'goldtorii', name: 'Gold-Torii', cost: 0, unlockKm: 0, streakWeeks: 26 },
+  { id: 'goldpagoda', name: 'Gold-Pagode', cost: 0, unlockKm: 0, streakWeeks: 52 },
+];
+
+export const ITEM_BY_ID = Object.fromEntries([...ITEMS, ...STREAK_ITEMS].map((i) => [i.id, i])) as Record<ItemId, ItemDef>;
 
 export const ENERGY_PER_KM = 10;
 /** Runs faster than this on average are treated as not on foot (bike, car, GPS glitch). */
 export const MAX_RUN_SPEED_KMH = 22;
 export const REFUND_RATE = 0.5;
+
+/** A week keeps the streak alive with this many runs of at least STREAK_MIN_KM. */
+export const STREAK_RUNS_PER_WEEK = 2;
+export const STREAK_MIN_KM = 1;
+export const STREAK_BONUS_PER_WEEK = 0.1;
+export const STREAK_BONUS_MAX = 0.5;
 
 export type Tile = { unlocked: boolean; item: ItemId | null };
 export type World = { size: number; tiles: Tile[] };
@@ -55,16 +78,22 @@ export type RunRecord = {
   distanceM: number;
   durationS: number;
   energy: number;
+  /** Extra energy from the streak bonus, included in `energy`. */
+  bonusEnergy?: number;
   route?: Route;
   /** Set when the run did not count, e.g. too fast to be on foot. */
   rejectedReason?: string;
 };
 
 export type GameState = {
-  version: 2;
+  version: 3;
   energy: number;
   runs: RunRecord[];
   world: World;
+  /** Collectibles earned but not yet placed. */
+  inventory: Partial<Record<StreakItemId, number>>;
+  /** Streak lengths whose reward has already been handed out. */
+  claimedStreaks: number[];
 };
 
 const WORLD_SIZE = 11;
@@ -84,7 +113,7 @@ export function createWorld(): World {
 }
 
 export function createGame(): GameState {
-  return { version: 2, energy: 0, runs: [], world: createWorld() };
+  return { version: 3, energy: 0, runs: [], world: createWorld(), inventory: {}, claimedStreaks: [] };
 }
 
 // Version 1 used emoji items; map them onto the Japanese set, refund what has no equivalent.
@@ -103,16 +132,27 @@ const V1_ITEMS: Record<string, { id: ItemId | null; cost: number }> = {
   castle: { id: 'castle', cost: 200 },
 };
 
-export function migrate(raw: { version: number } & Omit<GameState, 'version'>): GameState {
-  if (raw.version === 2) return raw as GameState;
-  let refund = 0;
-  const tiles = raw.world.tiles.map((t) => {
-    if (!t.item) return t;
-    const mapped = V1_ITEMS[t.item];
-    if (!mapped?.id) refund += Math.floor((mapped?.cost ?? 0) * REFUND_RATE);
-    return { ...t, item: mapped?.id ?? null };
-  });
-  return { ...raw, version: 2, energy: raw.energy + refund, world: { ...raw.world, tiles } };
+type SavedState = { version: number; energy: number; runs: RunRecord[]; world: World } & Partial<Omit<GameState, 'version'>>;
+
+export function migrate(raw: SavedState): GameState {
+  let state = raw;
+  if (state.version === 1) {
+    let refund = 0;
+    const tiles = state.world.tiles.map((t) => {
+      if (!t.item) return t;
+      const mapped = V1_ITEMS[t.item];
+      if (!mapped?.id) refund += Math.floor((mapped?.cost ?? 0) * REFUND_RATE);
+      return { ...t, item: mapped?.id ?? null };
+    });
+    state = { ...state, version: 2, energy: state.energy + refund, world: { ...state.world, tiles } };
+  }
+  if (state.version === 2) {
+    // Streaks are new: don't hand out rewards retroactively for weeks before the update.
+    const { weeks } = streakInfo(state.runs);
+    const claimedStreaks = STREAK_ITEMS.map((i) => i.streakWeeks!).filter((w) => w <= weeks);
+    state = { ...state, version: 3, inventory: {}, claimedStreaks };
+  }
+  return state as GameState;
 }
 
 export function energyForRun(distanceM: number, durationS: number): { energy: number; rejectedReason?: string } {
@@ -170,17 +210,19 @@ export function startOfWeek(time: number): number {
   return d.getTime();
 }
 
+function weeksBefore(weekStart: number, n: number): number {
+  const d = new Date(weekStart);
+  d.setDate(d.getDate() - 7 * n);
+  return d.getTime();
+}
+
 export type WeekStats = { start: number; km: number; runs: number };
 
 /** Kilometres per week, oldest first, ending with the current week. */
 export function weeklyStats(runs: RunRecord[], weeks: number, now = Date.now()): WeekStats[] {
   const result: WeekStats[] = [];
   const current = startOfWeek(now);
-  for (let i = weeks - 1; i >= 0; i--) {
-    const d = new Date(current);
-    d.setDate(d.getDate() - 7 * i);
-    result.push({ start: d.getTime(), km: 0, runs: 0 });
-  }
+  for (let i = weeks - 1; i >= 0; i--) result.push({ start: weeksBefore(current, i), km: 0, runs: 0 });
   for (const run of runs) {
     if (run.rejectedReason) continue;
     const week = result.find((w) => w.start === startOfWeek(run.startedAt));
@@ -189,4 +231,88 @@ export function weeklyStats(runs: RunRecord[], weeks: number, now = Date.now()):
     week.runs += 1;
   }
   return result;
+}
+
+export type StreakInfo = {
+  /** Consecutive weeks reaching the goal; the current week counts once it is reached. */
+  weeks: number;
+  thisWeekRuns: number;
+  thisWeekDone: boolean;
+};
+
+const countsForStreak = (r: RunRecord) => !r.rejectedReason && r.distanceM >= STREAK_MIN_KM * 1000;
+
+export function streakInfo(runs: RunRecord[], now = Date.now()): StreakInfo {
+  const perWeek = new Map<number, number>();
+  for (const r of runs) {
+    if (!countsForStreak(r) || r.startedAt > now) continue;
+    const w = startOfWeek(r.startedAt);
+    perWeek.set(w, (perWeek.get(w) ?? 0) + 1);
+  }
+  const current = startOfWeek(now);
+  const thisWeekRuns = perWeek.get(current) ?? 0;
+  const thisWeekDone = thisWeekRuns >= STREAK_RUNS_PER_WEEK;
+
+  // A week in progress doesn't break the streak yet, so start counting from last week if needed.
+  let weeks = 0;
+  let week = thisWeekDone ? current : weeksBefore(current, 1);
+  while ((perWeek.get(week) ?? 0) >= STREAK_RUNS_PER_WEEK) {
+    weeks++;
+    week = weeksBefore(week, 1);
+  }
+  return { weeks, thisWeekRuns, thisWeekDone };
+}
+
+export function streakBonus(weeks: number): number {
+  return Math.min(STREAK_BONUS_MAX, weeks * STREAK_BONUS_PER_WEEK);
+}
+
+export function nextStreakReward(weeks: number): ItemDef | null {
+  return STREAK_ITEMS.find((i) => i.streakWeeks! > weeks) ?? null;
+}
+
+export type RunInput = Omit<RunRecord, 'id' | 'energy' | 'bonusEnergy' | 'rejectedReason'>;
+
+export type RunOutcome = {
+  state: GameState;
+  record: RunRecord;
+  /** Collectibles awarded by this run. */
+  rewards: StreakItemId[];
+  streak: StreakInfo;
+};
+
+/** Adds a finished run: energy with streak bonus, and any streak collectibles it unlocks. */
+export function applyRun(state: GameState, run: RunInput): RunOutcome {
+  const base = energyForRun(run.distanceM, run.durationS);
+  // The bonus is based on the streak before this run, so one run can't boost itself.
+  const before = streakInfo(state.runs, run.endedAt);
+  const bonusEnergy = base.rejectedReason ? 0 : Math.round(base.energy * streakBonus(before.weeks));
+  const record: RunRecord = {
+    id: String(run.startedAt),
+    ...run,
+    energy: base.energy + bonusEnergy,
+    bonusEnergy: bonusEnergy || undefined,
+    rejectedReason: base.rejectedReason,
+  };
+
+  const runs = [record, ...state.runs];
+  const streak = streakInfo(runs, run.endedAt);
+  const rewards = STREAK_ITEMS.filter((i) => i.streakWeeks! <= streak.weeks && !state.claimedStreaks.includes(i.streakWeeks!)).map(
+    (i) => i.id as StreakItemId,
+  );
+  const inventory = { ...state.inventory };
+  for (const id of rewards) inventory[id] = (inventory[id] ?? 0) + 1;
+
+  return {
+    state: {
+      ...state,
+      energy: state.energy + record.energy,
+      runs,
+      inventory,
+      claimedStreaks: [...state.claimedStreaks, ...rewards.map((id) => ITEM_BY_ID[id].streakWeeks!)],
+    },
+    record,
+    rewards,
+    streak,
+  };
 }

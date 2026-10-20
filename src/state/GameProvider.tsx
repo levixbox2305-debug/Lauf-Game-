@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import {
+  applyRun,
   createGame,
-  energyForRun,
   expansionCost,
   isNeighborOfLand,
   ITEM_BY_ID,
@@ -10,15 +10,16 @@ import {
   totalKm,
   type GameState,
   type ItemId,
-  type RunRecord,
+  type RunInput,
+  type RunOutcome,
+  type StreakItemId,
 } from '../lib/game';
 import { saveGame } from '../lib/storage';
-import type { FinishedRun } from '../lib/tracker';
 
 type GameApi = {
   state: GameState;
   totalKm: number;
-  addRun: (run: FinishedRun) => RunRecord;
+  addRun: (run: RunInput) => RunOutcome;
   build: (index: number, item: ItemId) => string | null;
   demolish: (index: number) => string | null;
   expand: (index: number) => string | null;
@@ -36,12 +37,14 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
 
   const km = useMemo(() => totalKm(state.runs), [state.runs]);
 
-  const addRun = useCallback((run: FinishedRun) => {
-    const { energy, rejectedReason } = energyForRun(run.distanceM, run.durationS);
-    const record: RunRecord = { id: String(run.startedAt), ...run, energy, rejectedReason };
-    setState((s) => ({ ...s, energy: s.energy + energy, runs: [record, ...s.runs] }));
-    return record;
-  }, []);
+  const addRun = useCallback(
+    (run: RunInput) => {
+      const outcome = applyRun(state, run);
+      setState(outcome.state);
+      return outcome;
+    },
+    [state],
+  );
 
   // Actions validate against the current state and return an error message, or null on success.
   const build = useCallback(
@@ -50,12 +53,20 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
       const tile = state.world.tiles[index];
       if (!tile?.unlocked) return 'Hier ist noch kein Land.';
       if (tile.item) return 'Hier steht schon etwas.';
-      if (km < item.unlockKm) return `${item.name} wird ab ${item.unlockKm} km freigeschaltet.`;
-      if (state.energy < item.cost) return `Dir fehlen ${item.cost - state.energy} ⚡ – ab auf die Strecke!`;
+      if (item.streakWeeks) {
+        if (!state.inventory[itemId as StreakItemId]) {
+          return `${item.name} bekommst du für ${item.streakWeeks} ${item.streakWeeks === 1 ? 'Woche' : 'Wochen'} Streak.`;
+        }
+      } else {
+        if (km < item.unlockKm) return `${item.name} wird ab ${item.unlockKm} km freigeschaltet.`;
+        if (state.energy < item.cost) return `Dir fehlen ${item.cost - state.energy} ⚡ – ab auf die Strecke!`;
+      }
       setState((s) => {
         const tiles = s.world.tiles.slice();
         tiles[index] = { ...tiles[index], item: itemId };
-        return { ...s, energy: s.energy - item.cost, world: { ...s.world, tiles } };
+        const inventory = { ...s.inventory };
+        if (item.streakWeeks) inventory[itemId as StreakItemId] = (inventory[itemId as StreakItemId] ?? 1) - 1;
+        return { ...s, energy: s.energy - item.cost, inventory, world: { ...s.world, tiles } };
       });
       return null;
     },
@@ -66,11 +77,16 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
     (index: number) => {
       const tile = state.world.tiles[index];
       if (!tile?.item) return 'Hier steht nichts.';
-      const refund = Math.floor(ITEM_BY_ID[tile.item].cost * REFUND_RATE);
+      const item = ITEM_BY_ID[tile.item];
       setState((s) => {
         const tiles = s.world.tiles.slice();
         tiles[index] = { ...tiles[index], item: null };
-        return { ...s, energy: s.energy + refund, world: { ...s.world, tiles } };
+        // Collectibles go back into the inventory instead of being sold.
+        if (item.streakWeeks) {
+          const id = item.id as StreakItemId;
+          return { ...s, inventory: { ...s.inventory, [id]: (s.inventory[id] ?? 0) + 1 }, world: { ...s.world, tiles } };
+        }
+        return { ...s, energy: s.energy + Math.floor(item.cost * REFUND_RATE), world: { ...s.world, tiles } };
       });
       return null;
     },

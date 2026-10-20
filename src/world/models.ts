@@ -30,6 +30,16 @@ const C = {
   rice: '#A4C94E',
   koi: '#F08A24',
   koiWhite: '#F6F1E7',
+  goldBright: '#F2C14E',
+  goldDark: '#B8862F',
+  gravel: ['#E4E0D6', '#D9D4C9'],
+  rock: ['#6E6E68', '#7C7C75', '#5F605B'],
+  moss: '#6F8F3A',
+  snow: ['#F7F7F4', '#E9ECEF'],
+  mountain: ['#5E6E8C', '#6B7C99', '#56657F'],
+  fur: ['#FAF7F0', '#F1ECE2'],
+  blue: '#3C6FB5',
+  black: '#2A2A2E',
 };
 
 const G = GROUND;
@@ -57,21 +67,23 @@ const sakura: Model = (v, ox, oy) => {
   }
 };
 
-const torii: Model = (v, ox, oy) => {
+const makeTorii = (main: string, top: string): Model => (v, ox, oy) => {
   for (let z = G; z < G + 9; z++) {
-    v.set(ox + 1, oy + 4, z, C.red);
-    v.set(ox + 6, oy + 4, z, C.red);
+    v.set(ox + 1, oy + 4, z, main);
+    v.set(ox + 6, oy + 4, z, main);
   }
   for (let x = 0; x <= 7; x++) {
-    v.set(ox + x, oy + 4, G + 7, C.red);
-    v.set(ox + x, oy + 4, G + 9, C.red);
+    v.set(ox + x, oy + 4, G + 7, main);
+    v.set(ox + x, oy + 4, G + 9, main);
   }
-  for (let x = -1; x <= 8; x++) v.set(ox + x, oy + 4, G + 10, C.ink);
-  v.set(ox - 1, oy + 4, G + 11, C.ink);
-  v.set(ox + 8, oy + 4, G + 11, C.ink);
-  v.set(ox + 1, oy + 4, G, C.ink);
-  v.set(ox + 6, oy + 4, G, C.ink);
+  for (let x = -1; x <= 8; x++) v.set(ox + x, oy + 4, G + 10, top);
+  v.set(ox - 1, oy + 4, G + 11, top);
+  v.set(ox + 8, oy + 4, G + 11, top);
+  v.set(ox + 1, oy + 4, G, top);
+  v.set(ox + 6, oy + 4, G, top);
 };
+
+const torii = makeTorii(C.red, C.ink);
 
 const lantern: Model = (v, ox, oy) => {
   for (let x = 2; x <= 4; x++) {
@@ -162,7 +174,16 @@ const teahouse: Model = (v, ox, oy) => {
 };
 
 /** Stacked tiers: each has walls and an overhanging roof with upturned corners. */
-function tiers(v: VoxelGrid, ox: number, oy: number, startZ: number, count: number, wallHeight: number, wall: (k: number, x: number, y: number) => string) {
+function tiers(
+  v: VoxelGrid,
+  ox: number,
+  oy: number,
+  startZ: number,
+  count: number,
+  wallHeight: number,
+  wall: (k: number, x: number, y: number) => string,
+  roof?: string,
+) {
   let z = startZ;
   for (let t = 0; t < count; t++) {
     const lo = 1 + t;
@@ -174,18 +195,20 @@ function tiers(v: VoxelGrid, ox: number, oy: number, startZ: number, count: numb
         }
       }
     }
-    for (let x = lo - 1; x <= hi + 1; x++) for (let y = lo - 1; y <= hi + 1; y++) v.set(ox + x, oy + y, z, pick(C.roof, x, y, z));
-    for (const [a, b] of [[lo - 1, lo - 1], [hi + 1, lo - 1], [lo - 1, hi + 1], [hi + 1, hi + 1]]) v.set(ox + a, oy + b, z + 1, C.roof[0]);
+    for (let x = lo - 1; x <= hi + 1; x++) for (let y = lo - 1; y <= hi + 1; y++) v.set(ox + x, oy + y, z, roof ?? pick(C.roof, x, y, z));
+    for (const [a, b] of [[lo - 1, lo - 1], [hi + 1, lo - 1], [lo - 1, hi + 1], [hi + 1, hi + 1]]) v.set(ox + a, oy + b, z + 1, roof ?? C.roof[0]);
     z++;
   }
   return z;
 }
 
-const pagoda: Model = (v, ox, oy) => {
+const makePagoda = (accent: string, wallColor: string, roof?: string): Model => (v, ox, oy) => {
   for (let x = 0; x < TILE; x++) for (let y = 0; y < TILE; y++) v.set(ox + x, oy + y, G, pick(C.stone, x, y, G));
-  const top = tiers(v, ox, oy, G + 1, 3, 3, (k, x, y) => ((x + y) % 3 === 0 ? C.wood : k === 1 ? C.red : C.plaster));
+  const top = tiers(v, ox, oy, G + 1, 3, 3, (k, x, y) => ((x + y) % 3 === 0 ? C.wood : k === 1 ? accent : wallColor), roof);
   for (let k = 0; k < 4; k++) v.set(ox + 3, oy + 3, top + k, C.gold);
 };
+
+const pagoda = makePagoda(C.red, C.plaster);
 
 const castle: Model = (v, ox, oy) => {
   // Sloped stone base, then white walls with dark roofs, like Himeji.
@@ -197,6 +220,78 @@ const castle: Model = (v, ox, oy) => {
   v.set(ox + 3, oy + 3, top, C.gold);
   v.set(ox + 4, oy + 3, top, C.gold);
 };
+
+const bell: Model = (v, ox, oy) => {
+  for (let z = G; z < G + 9; z++) {
+    v.set(ox + 1, oy + 4, z, C.red);
+    v.set(ox + 6, oy + 4, z, C.red);
+  }
+  for (let x = 0; x <= 7; x++) v.set(ox + x, oy + 4, G + 9, C.ink);
+  for (let x = 1; x <= 6; x++) v.set(ox + x, oy + 4, G + 10, pick(C.roof, x, 0, 1));
+  v.set(ox + 3, oy + 4, G + 8, C.goldDark);
+  v.set(ox + 4, oy + 4, G + 8, C.goldDark);
+  for (let z = G + 4; z < G + 8; z++) {
+    const r = z === G + 4 ? 2 : 1; // flared rim at the bottom
+    for (let x = 3 - r + 1; x <= 4 + r - 1; x++) for (let y = 4 - r + 1; y <= 4 + r - 1; y++) v.set(ox + x, oy + y, z, z === G + 4 ? C.goldDark : C.goldBright);
+  }
+  for (let z = G + 1; z < G + 4; z++) v.set(ox + 4, oy + 5, z, C.red); // rope
+};
+
+const koinobori: Model = (v, ox, oy) => {
+  for (let z = G; z < G + 15; z++) v.set(ox + 1, oy + 1, z, C.plaster);
+  v.set(ox + 1, oy + 1, G + 15, C.goldBright);
+  for (const [z, color, len] of [[G + 13, C.black, 6], [G + 10, C.red, 5], [G + 7, C.blue, 4]] as const) {
+    for (let i = 1; i <= len; i++) {
+      const sag = i > len - 2 ? 1 : 0; // the tail droops a little
+      v.set(ox + 1 + i, oy + 1 + Math.floor(i / 2), z - sag, i === 1 ? C.koiWhite : color);
+      v.set(ox + 1 + i, oy + 1 + Math.floor(i / 2), z - 1 - sag, i % 2 ? color : C.koiWhite);
+    }
+  }
+};
+
+const zen: Model = (v, ox, oy) => {
+  for (let x = 0; x < TILE; x++) for (let y = 0; y < TILE; y++) v.set(ox + x, oy + y, G - 1, C.gravel[(x + y) % 2]);
+  for (const [x, y, h] of [[2, 2, 3], [5, 3, 2], [3, 6, 1]]) {
+    for (let z = 0; z < h; z++) {
+      v.set(ox + x, oy + y, G + z, pick(C.rock, x, y, z));
+      if (z < h - 1) v.set(ox + x + 1, oy + y, G + z, pick(C.rock, y, x, z));
+    }
+    v.set(ox + x, oy + y + 1, G, C.moss);
+  }
+};
+
+const cat: Model = (v, ox, oy) => {
+  // Body
+  for (let x = 2; x <= 5; x++) for (let y = 3; y <= 5; y++) for (let z = G; z < G + 4; z++) v.set(ox + x, oy + y, z, pick(C.fur, x, y, z));
+  // Head
+  for (let x = 2; x <= 5; x++) for (let y = 3; y <= 5; y++) for (let z = G + 4; z < G + 7; z++) v.set(ox + x, oy + y, z, pick(C.fur, x, y, z));
+  v.set(ox + 2, oy + 3, G + 7, C.fur[0]);
+  v.set(ox + 5, oy + 3, G + 7, C.fur[0]);
+  v.set(ox + 3, oy + 5, G + 5, C.ink); // eyes on the front (+y) face
+  v.set(ox + 4, oy + 5, G + 5, C.ink);
+  for (let x = 2; x <= 5; x++) v.set(ox + x, oy + 5, G + 3, C.red); // collar
+  v.set(ox + 4, oy + 6, G + 3, C.goldBright);
+  // Raised paw
+  v.set(ox + 6, oy + 4, G + 4, C.fur[0]);
+  v.set(ox + 6, oy + 4, G + 5, C.fur[0]);
+  v.set(ox + 6, oy + 4, G + 6, C.fur[1]);
+};
+
+const fuji: Model = (v, ox, oy) => {
+  for (let z = 0; z < 13; z++) {
+    const r = 5 - z * 0.38;
+    for (let x = -1; x <= 8; x++) {
+      for (let y = -1; y <= 8; y++) {
+        if (Math.hypot(x - 3.5, y - 3.5) > r) continue;
+        const snowLine = 9 + Math.floor(hash(x, y, 5) * 2);
+        v.set(ox + x, oy + y, G + z, z >= snowLine ? pick(C.snow, x, y, z) : pick(C.mountain, x, y, z));
+      }
+    }
+  }
+};
+
+const goldtorii = makeTorii(C.goldBright, C.goldDark);
+const goldpagoda = makePagoda(C.goldBright, C.goldDark, C.goldDark);
 
 export const MODELS: Record<ItemId, Model> = {
   sakura,
@@ -210,6 +305,13 @@ export const MODELS: Record<ItemId, Model> = {
   teahouse,
   pagoda,
   castle,
+  bell,
+  koinobori,
+  zen,
+  cat,
+  fuji,
+  goldtorii,
+  goldpagoda,
 };
 
 function groundTile(v: VoxelGrid, ox: number, oy: number) {

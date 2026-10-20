@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ItemThumb } from '../components/ItemThumb';
 import { VoxelWorld } from '../components/VoxelWorld';
-import { expansionCost, ITEMS, levelFor, type ItemId } from '../lib/game';
+import { expansionCost, ITEMS, levelFor, STREAK_ITEMS, type ItemId, type StreakItemId } from '../lib/game';
 import { useGame } from '../state/GameProvider';
 import { colors, fonts } from '../theme';
 
@@ -90,6 +90,27 @@ export default function WorldScreen() {
             />
           );
         })}
+        <View style={styles.divider}>
+          <Text style={styles.dividerGlyph}>連</Text>
+          <Text style={styles.dividerText}>Streak</Text>
+        </View>
+        {STREAK_ITEMS.map((item) => {
+          const weeks = item.streakWeeks!;
+          const earned = state.claimedStreaks.includes(weeks);
+          const count = state.inventory[item.id as StreakItemId] ?? 0;
+          return (
+            <ToolChip
+              key={item.id}
+              item={item.id}
+              label={item.name}
+              sub={!earned ? `🔒 ${weeks} Wo.` : count > 0 ? `× ${count}` : 'platziert'}
+              locked={!earned}
+              dim={earned && count === 0}
+              active={tool.kind === 'build' && tool.item === item.id}
+              onPress={() => setTool({ kind: 'build', item: item.id })}
+            />
+          );
+        })}
         <ToolChip
           glyph="壊"
           label="Abreißen"
@@ -168,6 +189,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
   },
+  divider: { width: 34, alignItems: 'center', justifyContent: 'center' },
+  dividerGlyph: { fontFamily: fonts.serif, fontSize: 18, color: colors.primary },
+  dividerText: { fontFamily: fonts.serif, fontSize: 9, color: colors.textMuted, marginTop: 2 },
   chipActive: { borderColor: colors.primary },
   chipDim: { opacity: 0.55 },
   chipArt: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },

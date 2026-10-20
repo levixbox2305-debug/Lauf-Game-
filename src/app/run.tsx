@@ -3,8 +3,19 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ItemThumb } from '../components/ItemThumb';
 import { RouteSketch } from '../components/RouteSketch';
-import { energyForRun, ENERGY_PER_KM, weeklyStats } from '../lib/game';
+import {
+  applyRun,
+  ENERGY_PER_KM,
+  ITEM_BY_ID,
+  nextStreakReward,
+  STREAK_MIN_KM,
+  STREAK_RUNS_PER_WEEK,
+  streakBonus,
+  streakInfo,
+  weeklyStats,
+} from '../lib/game';
 import { formatDuration, formatKm, formatPace } from '../lib/geo';
 import type { ActiveRun } from '../lib/storage';
 import { elapsedSeconds, finishRun, pauseRun, resumeRun, startRun, subscribe, toRoute, type FinishedRun } from '../lib/tracker';
@@ -36,6 +47,8 @@ function Idle() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const week = weeklyStats(state.runs, 1)[0];
+  const streak = streakInfo(state.runs);
+  const next = nextStreakReward(streak.weeks);
   const last = state.runs[0];
 
   const onStart = async () => {
@@ -46,9 +59,9 @@ function Idle() {
     setBusy(false);
   };
 
-  const onSimulate = () => {
+  const onSimulate = (daysAgo = 0) => {
     // Development helper: a 2.5 km loop at a 6:00 pace.
-    const endedAt = Date.now();
+    const endedAt = Date.now() - daysAgo * 86400000;
     const durationS = 15 * 60;
     const route = toRoute([
       Array.from({ length: 40 }, (_, i) => {
@@ -63,11 +76,40 @@ function Idle() {
     <>
       <Text style={styles.heading}>Laufen</Text>
       <View style={styles.weekCard}>
-        <Text style={styles.cardLabel}>Diese Woche</Text>
-        <Text style={styles.weekValue}>{week.km.toLocaleString('de-DE', { maximumFractionDigits: 1 })} km</Text>
-        <Text style={styles.cardSub}>
-          {week.runs} {week.runs === 1 ? 'Lauf' : 'Läufe'}
-        </Text>
+        <View style={styles.weekRow}>
+          <View>
+            <Text style={styles.cardLabel}>Diese Woche</Text>
+            <Text style={styles.weekValue}>{week.km.toLocaleString('de-DE', { maximumFractionDigits: 1 })} km</Text>
+            <Text style={styles.cardSub}>
+              {week.runs} {week.runs === 1 ? 'Lauf' : 'Läufe'}
+            </Text>
+          </View>
+          <View style={styles.streakBadge}>
+            <Text style={styles.streakGlyph}>連</Text>
+            <Text style={styles.streakNumber}>{streak.weeks}</Text>
+            <Text style={styles.streakLabel}>{streak.weeks === 1 ? 'Woche' : 'Wochen'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.streakGoal}>
+          <View style={styles.dots}>
+            {Array.from({ length: STREAK_RUNS_PER_WEEK }, (_, i) => (
+              <View key={i} style={[styles.dot, i < streak.thisWeekRuns && styles.dotDone]} />
+            ))}
+          </View>
+          <Text style={styles.streakText}>
+            {streak.thisWeekDone
+              ? 'Woche geschafft – Streak läuft weiter.'
+              : `Noch ${STREAK_RUNS_PER_WEEK - streak.thisWeekRuns} ${STREAK_RUNS_PER_WEEK - streak.thisWeekRuns === 1 ? 'Lauf' : 'Läufe'} (ab ${STREAK_MIN_KM} km) diese Woche für den Streak.`}
+          </Text>
+        </View>
+        {(streak.weeks > 0 || next) && (
+          <Text style={styles.streakFoot}>
+            {streak.weeks > 0 && `+${Math.round(streakBonus(streak.weeks) * 100)} % Energie-Bonus`}
+            {streak.weeks > 0 && next && ' · '}
+            {next && `${next.name} bei ${next.streakWeeks} ${next.streakWeeks === 1 ? 'Woche' : 'Wochen'}`}
+          </Text>
+        )}
       </View>
       {last && (
         <View style={styles.lastCard}>
@@ -87,9 +129,14 @@ function Idle() {
       </View>
 
       {__DEV__ && (
-        <Pressable onPress={onSimulate} style={styles.devButton}>
-          <Text style={styles.devText}>Testlauf simulieren (2,5 km)</Text>
-        </Pressable>
+        <View style={styles.devRow}>
+          <Pressable onPress={() => onSimulate()} style={styles.devButton}>
+            <Text style={styles.devText}>Testlauf (2,5 km)</Text>
+          </Pressable>
+          <Pressable onPress={() => onSimulate(7)} style={styles.devButton}>
+            <Text style={styles.devText}>Testlauf vor 7 Tagen</Text>
+          </Pressable>
+        </View>
       )}
     </>
   );
@@ -157,14 +204,16 @@ function Active({ run, onFinish }: { run: ActiveRun; onFinish: (run: FinishedRun
 }
 
 function Summary({ run, onDone }: { run: FinishedRun; onDone: () => void }) {
-  const { addRun } = useGame();
+  const { state, addRun } = useGame();
   const { width } = useWindowDimensions();
-  const { energy, rejectedReason } = energyForRun(run.distanceM, run.durationS);
+  // Preview what saving would award, without changing anything yet.
+  const preview = applyRun(state, run);
+  const { record, rewards } = preview;
 
   const save = () => {
     addRun(run);
     onDone();
-    if (!rejectedReason && energy > 0) router.navigate('/');
+    if (record.energy > 0 || rewards.length) router.navigate('/');
   };
 
   return (
@@ -173,7 +222,7 @@ function Summary({ run, onDone }: { run: FinishedRun; onDone: () => void }) {
       <View style={styles.summaryCard}>
         <View style={styles.summaryRoute}>
           {run.route.flat().length > 1 ? (
-            <RouteSketch route={run.route} width={width - 64} height={200} strokeWidth={3.5} />
+            <RouteSketch route={run.route} width={width - 64} height={180} strokeWidth={3.5} />
           ) : (
             <Text style={styles.hint}>Keine Route aufgezeichnet</Text>
           )}
@@ -184,13 +233,32 @@ function Summary({ run, onDone }: { run: FinishedRun; onDone: () => void }) {
           <Stat value={formatPace(run.distanceM, run.durationS)} label="Ø min/km" />
         </View>
         <View style={styles.reward}>
-          {rejectedReason ? (
-            <Text style={styles.rewardMuted}>{rejectedReason} – es gibt keine Energie.</Text>
+          {record.rejectedReason ? (
+            <Text style={styles.rewardMuted}>{record.rejectedReason} – es gibt keine Energie.</Text>
           ) : (
-            <Text style={styles.rewardText}>+{energy} ⚡ für deine Welt</Text>
+            <>
+              <Text style={styles.rewardText}>+{record.energy} ⚡ für deine Welt</Text>
+              {record.bonusEnergy ? <Text style={styles.rewardSub}>davon +{record.bonusEnergy} ⚡ Streak-Bonus</Text> : null}
+            </>
           )}
         </View>
       </View>
+
+      {rewards.length > 0 && (
+        <View style={styles.collectCard}>
+          <Text style={styles.collectTitle}>
+            連 {preview.streak.weeks} {preview.streak.weeks === 1 ? 'Woche' : 'Wochen'} Streak – neu gesammelt
+          </Text>
+          <View style={styles.collectRow}>
+            {rewards.map((id) => (
+              <View key={id} style={styles.collectItem}>
+                <ItemThumb item={id} size={56} />
+                <Text style={styles.collectName}>{ITEM_BY_ID[id].name}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
 
       <View style={styles.summaryActions}>
         <Pressable style={[styles.wideButton, { backgroundColor: colors.primary }]} onPress={save}>
@@ -231,6 +299,32 @@ const styles = StyleSheet.create({
   cardLabel: { fontFamily: fonts.serif, fontSize: 13, color: colors.inkSoft, letterSpacing: 1 },
   weekValue: { fontFamily: fonts.mono, fontSize: 40, fontWeight: '700', color: colors.background, marginTop: 4 },
   cardSub: { fontFamily: fonts.serif, color: colors.inkSoft, marginTop: 2 },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  streakBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    minWidth: 76,
+  },
+  streakGlyph: { fontFamily: fonts.serif, color: colors.onPrimary, fontSize: 16 },
+  streakNumber: { fontFamily: fonts.mono, color: colors.onPrimary, fontSize: 30, fontWeight: '700', lineHeight: 34 },
+  streakLabel: { fontFamily: fonts.serif, color: colors.onPrimary, fontSize: 11 },
+  streakGoal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(243,235,221,0.15)',
+  },
+  dots: { flexDirection: 'row', gap: 6 },
+  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.inkSoft },
+  dotDone: { backgroundColor: colors.sakura, borderColor: colors.sakura },
+  streakText: { flex: 1, fontFamily: fonts.serif, color: colors.background, fontSize: 13 },
+  streakFoot: { fontFamily: fonts.serif, color: colors.inkSoft, fontSize: 12, marginTop: 8 },
   lastCard: {
     marginTop: 10,
     backgroundColor: colors.surface,
@@ -254,6 +348,7 @@ const styles = StyleSheet.create({
   startGlyph: { fontFamily: fonts.serif, fontSize: 56, color: colors.onPrimary, lineHeight: 64 },
   startText: { fontFamily: fonts.serif, fontSize: 18, fontWeight: '700', color: colors.onPrimary, letterSpacing: 2 },
   error: { marginTop: 16, color: colors.primary, textAlign: 'center', fontFamily: fonts.serif },
+  devRow: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
   devButton: { alignItems: 'center', paddingVertical: 8 },
   devText: { color: colors.textMuted, fontFamily: fonts.serif },
   bigStat: { alignItems: 'center', marginTop: 8 },
@@ -277,9 +372,15 @@ const styles = StyleSheet.create({
   round: { width: 112, height: 112, borderRadius: 56, alignItems: 'center', justifyContent: 'center' },
   roundText: { fontFamily: fonts.serif, color: colors.background, fontSize: 18, fontWeight: '700' },
   summaryCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border },
-  summaryRoute: { height: 200, alignItems: 'center', justifyContent: 'center' },
+  summaryRoute: { height: 180, alignItems: 'center', justifyContent: 'center' },
   reward: { marginTop: 16, alignItems: 'center' },
   rewardText: { fontFamily: fonts.serif, fontSize: 22, fontWeight: '700', color: colors.primary },
+  rewardSub: { fontFamily: fonts.serif, color: colors.textMuted, marginTop: 2 },
+  collectCard: { marginTop: 12, backgroundColor: colors.ink, borderRadius: 14, padding: 14 },
+  collectTitle: { fontFamily: fonts.serif, color: colors.background, fontSize: 14, fontWeight: '700' },
+  collectRow: { flexDirection: 'row', gap: 16, marginTop: 8 },
+  collectItem: { alignItems: 'center' },
+  collectName: { fontFamily: fonts.serif, color: colors.background, fontSize: 12, marginTop: 2 },
   rewardMuted: { fontFamily: fonts.serif, color: colors.textMuted, textAlign: 'center' },
   summaryActions: { marginTop: 'auto', gap: 8 },
   wideButton: { borderRadius: 999, paddingVertical: 18, alignItems: 'center' },
