@@ -2,6 +2,7 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CloudBadge } from '../components/AccountSheet';
+import { supabase } from '../lib/cloud';
 import { RouteSketch } from '../components/RouteSketch';
 import { levelFor, weeklyStats } from '../lib/game';
 import { formatDuration, formatKm, formatPace } from '../lib/geo';
@@ -70,6 +71,11 @@ export default function HistoryScreen() {
           {state.runs.length > 0 && <Text style={styles.sectionLabel}>Alle Läufe</Text>}
         </View>
       }
+      ListFooterComponent={
+        <Text style={styles.footer}>
+          Version {(process.env.EXPO_PUBLIC_BUILD_ID ?? 'lokal').slice(0, 7)} · Backup {supabase ? 'eingerichtet' : 'nicht eingerichtet'}
+        </Text>
+      }
       ListEmptyComponent={<Text style={styles.empty}>Noch keine Läufe. Dein erster Lauf pflanzt die erste Sakura.</Text>}
       renderItem={({ item }) => (
         <View style={[styles.run, item.rejectedReason && { opacity: 0.6 }]}>
@@ -117,6 +123,7 @@ const styles = StyleSheet.create({
   weekBar: { width: 14, backgroundColor: colors.ink, borderRadius: 3 },
   weekLabel: { fontFamily: fonts.mono, fontSize: 9, color: colors.textMuted, marginTop: 6 },
   sectionLabel: { fontFamily: fonts.serif, fontSize: 13, color: colors.textMuted, letterSpacing: 1, marginTop: 6 },
+  footer: { fontFamily: fonts.mono, fontSize: 10, color: colors.textMuted, textAlign: 'center', marginTop: 24 },
   empty: { textAlign: 'center', color: colors.textMuted, marginTop: 32, paddingHorizontal: 24, fontFamily: fonts.serif },
   run: {
     flexDirection: 'row',

@@ -25,12 +25,24 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Supabase-Variablen prüfen
+        # Shows only whether the values exist, never the values themselves.
+        env:
+          URL: ${{ vars.SUPABASE_URL }}
+          KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          SECRET_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          echo "::notice title=Supabase::SUPABASE_URL ${URL:+gesetzt}${URL:-FEHLT} · SUPABASE_ANON_KEY ${KEY:+gesetzt}${KEY:-FEHLT}"
+          if [ -z "$URL" ] && [ -n "$SECRET_URL" ]; then
+            echo "::warning title=Supabase::SUPABASE_URL ist als Secret angelegt – bitte unter Variables anlegen."
+          fi
       - name: Build
         env:
           # Repository variables (Settings → Secrets and variables → Actions → Variables).
           # Without them the app runs fine, just without cloud backup.
           EXPO_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_BUILD_ID: ${{ github.sha }}
         # Project pages live under /<repo>; a <user>.github.io repo is served from the root.
         run: |
           REPO="${{ github.event.repository.name }}"
