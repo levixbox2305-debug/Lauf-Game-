@@ -32,7 +32,8 @@ jobs:
           KEY: ${{ vars.SUPABASE_ANON_KEY }}
           SECRET_URL: ${{ secrets.SUPABASE_URL }}
         run: |
-          echo "::notice title=Supabase::SUPABASE_URL ${URL:+gesetzt}${URL:-FEHLT} · SUPABASE_ANON_KEY ${KEY:+gesetzt}${KEY:-FEHLT}"
+          state() { if [ -n "$1" ]; then echo gesetzt; else echo FEHLT; fi; }
+          echo "::notice title=Supabase::SUPABASE_URL $(state "$URL") · SUPABASE_ANON_KEY $(state "$KEY")"
           if [ -z "$URL" ] && [ -n "$SECRET_URL" ]; then
             echo "::warning title=Supabase::SUPABASE_URL ist als Secret angelegt – bitte unter Variables anlegen."
           fi
