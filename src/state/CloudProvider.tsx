@@ -26,12 +26,14 @@ const CloudContext = createContext<CloudApi | null>(null);
 /** How long to wait after a change before uploading, so a burst of building is one upload. */
 const DEBOUNCE_MS = 1500;
 
-export function CloudProvider({ children }: { children: ReactNode }) {
+/** `disabled` keeps the developer playground out of the backup. */
+export function CloudProvider({ children, disabled = false }: { children: ReactNode; disabled?: boolean }) {
+  const client = disabled ? null : supabase;
   const { state, mergeRemote } = useGame();
   const [session, setSession] = useState<Session | null>(null);
   const [syncStatus, setStatus] = useState<SyncStatus>('syncing');
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
-  const userId = session?.user.id ?? null;
+  const userId = client ? (session?.user.id ?? null) : null;
 
   const stateRef = useRef<GameState>(state);
   useEffect(() => {
@@ -39,11 +41,11 @@ export function CloudProvider({ children }: { children: ReactNode }) {
   }, [state]);
 
   useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    if (!client) return;
+    client.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data } = client.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => data.subscription.unsubscribe();
-  }, []);
+  }, [client]);
 
   const running = useRef(false);
   const pending = useRef(false);
@@ -113,11 +115,11 @@ export function CloudProvider({ children }: { children: ReactNode }) {
     await supabase?.auth.signOut();
   }, []);
 
-  const status: SyncStatus = !supabase ? 'off' : userId ? syncStatus : 'signedOut';
+  const status: SyncStatus = !client ? 'off' : userId ? syncStatus : 'signedOut';
 
   const api = useMemo<CloudApi>(
     () => ({
-      enabled: supabase !== null,
+      enabled: client !== null,
       email: session?.user.email ?? null,
       status,
       lastSyncedAt,
@@ -126,7 +128,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       signOut,
       syncNow: () => void sync(),
     }),
-    [session, status, lastSyncedAt, signIn, signUp, signOut, sync],
+    [client, session, status, lastSyncedAt, signIn, signUp, signOut, sync],
   );
 
   return <CloudContext.Provider value={api}>{children}</CloudContext.Provider>;

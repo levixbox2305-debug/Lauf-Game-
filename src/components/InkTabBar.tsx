@@ -4,6 +4,8 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import Svg, { G, Path } from 'react-native-svg';
 
 import { subscribe } from '../lib/tracker';
+import { useDev } from '../state/DevProvider';
+import { DevBadge } from './DevSheet';
 import { colors, fonts } from '../theme';
 
 const TABS: Record<string, { glyph: string; label: string }> = {
@@ -50,11 +52,17 @@ export function InkTabBar({ state, emitter, navigateToTab, insets }: BottomTabBa
   const [running, setRunning] = useState(false);
   useEffect(() => subscribe((run) => setRunning(run !== null)), []);
 
+  const { profile } = useDev();
   const routes = state.routes.filter((r) => TABS[r.name]);
   const height = BAR_HEIGHT + insets.bottom;
 
   return (
     <View style={[styles.container, { height: height + RAISE }]}>
+      {profile === 'sandbox' && (
+        <View style={styles.devBadge}>
+          <DevBadge />
+        </View>
+      )}
       <View style={[styles.bar, { height }]}>
         <Seigaiha width={width} height={height} />
         <View style={styles.topLine} />
@@ -102,6 +110,7 @@ export function InkTabBar({ state, emitter, navigateToTab, insets }: BottomTabBa
 const styles = StyleSheet.create({
   // The transparent strip above the bar keeps the raised stamp tappable on Android.
   container: { justifyContent: 'flex-end', backgroundColor: colors.background },
+  devBadge: { position: 'absolute', top: 0, left: 12, zIndex: 1 },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.ink, overflow: 'hidden' },
   topLine: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: colors.primary },
   row: { flexDirection: 'row', alignItems: 'flex-end', height: '100%' },

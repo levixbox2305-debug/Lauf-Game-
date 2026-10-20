@@ -21,11 +21,12 @@ import { formatDuration, formatKm, formatPace } from '../lib/geo';
 import type { ActiveRun } from '../lib/storage';
 import { useScreenAwake } from '../lib/useScreenAwake';
 import { elapsedSeconds, finishRun, pauseRun, resumeRun, startRun, subscribe, toRoute, type FinishedRun } from '../lib/tracker';
+import { useDev } from '../state/DevProvider';
 import { useGame } from '../state/GameProvider';
 import { colors, fonts } from '../theme';
 
-/** Test runs are for development; a build can also opt in for automated UI tests. */
-const SHOW_TEST_TOOLS = __DEV__ || process.env.EXPO_PUBLIC_TEST_TOOLS === '1';
+/** Test runs are for development and the playground; a build can also opt in for automated UI tests. */
+const TEST_TOOLS_IN_BUILD = __DEV__ || process.env.EXPO_PUBLIC_TEST_TOOLS === '1';
 
 export default function RunScreen() {
   const insets = useSafeAreaInsets();
@@ -49,6 +50,8 @@ export default function RunScreen() {
 
 function Idle() {
   const { state, addRun } = useGame();
+  const { profile } = useDev();
+  const showTestTools = TEST_TOOLS_IN_BUILD || profile === 'sandbox';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const week = weeklyStats(state.runs, 1)[0];
@@ -152,7 +155,7 @@ function Idle() {
         {error && <Text style={styles.error}>{error}</Text>}
       </View>
 
-      {SHOW_TEST_TOOLS && (
+      {showTestTools && (
         <View style={styles.devRow}>
           <Pressable onPress={() => onSimulate()} style={styles.devButton}>
             <Text style={styles.devText}>Testlauf (2,5 km)</Text>

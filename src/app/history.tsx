@@ -1,7 +1,9 @@
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CloudBadge } from '../components/AccountSheet';
+import { DevSheet } from '../components/DevSheet';
 import { supabase } from '../lib/cloud';
 import { RouteSketch } from '../components/RouteSketch';
 import { levelFor, weeklyStats } from '../lib/game';
@@ -15,6 +17,8 @@ const BAR_HEIGHT = 72;
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const { state, totalKm } = useGame();
+  const [versionTaps, setVersionTaps] = useState(0);
+  const [showDev, setShowDev] = useState(false);
   const level = levelFor(totalKm);
   const progress = level.nextKm ? (totalKm - level.currentKm) / (level.nextKm - level.currentKm) : 1;
   const weeks = weeklyStats(state.runs, WEEKS);
@@ -72,9 +76,21 @@ export default function HistoryScreen() {
         </View>
       }
       ListFooterComponent={
-        <Text style={styles.footer}>
-          Version {(process.env.EXPO_PUBLIC_BUILD_ID ?? 'lokal').slice(0, 7)} · Backup {supabase ? 'eingerichtet' : 'nicht eingerichtet'}
-        </Text>
+        <>
+          {/* Tapping the version five times opens the developer playground. */}
+          <Pressable
+            onPress={() => {
+              const next = versionTaps + 1;
+              setVersionTaps(next >= 5 ? 0 : next);
+              if (next >= 5) setShowDev(true);
+            }}>
+            <Text style={styles.footer}>
+              Version {(process.env.EXPO_PUBLIC_BUILD_ID ?? 'lokal').slice(0, 7)} · Backup{' '}
+              {supabase ? 'eingerichtet' : 'nicht eingerichtet'}
+            </Text>
+          </Pressable>
+          <DevSheet visible={showDev} onClose={() => setShowDev(false)} />
+        </>
       }
       ListEmptyComponent={<Text style={styles.empty}>Noch keine Läufe. Dein erster Lauf pflanzt die erste Sakura.</Text>}
       renderItem={({ item }) => (
@@ -123,7 +139,7 @@ const styles = StyleSheet.create({
   weekBar: { width: 14, backgroundColor: colors.ink, borderRadius: 3 },
   weekLabel: { fontFamily: fonts.mono, fontSize: 9, color: colors.textMuted, marginTop: 6 },
   sectionLabel: { fontFamily: fonts.serif, fontSize: 13, color: colors.textMuted, letterSpacing: 1, marginTop: 6 },
-  footer: { fontFamily: fonts.mono, fontSize: 10, color: colors.textMuted, textAlign: 'center', marginTop: 24 },
+  footer: { fontFamily: fonts.mono, fontSize: 10, color: colors.textMuted, textAlign: 'center', marginTop: 24, paddingVertical: 8 },
   empty: { textAlign: 'center', color: colors.textMuted, marginTop: 32, paddingHorizontal: 24, fontFamily: fonts.serif },
   run: {
     flexDirection: 'row',

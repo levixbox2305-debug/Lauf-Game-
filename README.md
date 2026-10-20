@@ -47,6 +47,13 @@ gesichert und zwischen Geräten abgeglichen (Läufe gehen dabei nie verloren; be
 Hinweis: Supabase pausiert kostenlose Projekte nach ca. einer Woche ohne Nutzung; im Dashboard per Klick wieder starten.
 Bis dahin speichert die App lokal weiter und sichert nach, sobald die Verbindung wieder da ist.
 
+## Entwicklermodus (Spielwiese)
+
+Im **Verlauf** ganz unten **5× auf die Versionszeile tippen** → „Spielwiese öffnen“.
+Die Spielwiese ist ein eigener Spielstand mit allem freigeschaltet (alle Welten fertig gebaut, alle Bewohner,
+alle Sammelobjekte, 99.999 ⚡, Testlauf-Buttons). Sie wird nie mit Supabase gesichert; der echte Spielstand bleibt unverändert.
+Über den Knopf „開発 Spielwiese“ über der Tab-Leiste: Uhrzeit der Bewohner umstellen, Spielwiese zurücksetzen, zurück zum echten Spielstand.
+
 ## Tests
 
 `npm test` prüft Streak-Regeln, Challenges, den Tagesablauf der Bewohner und das Zusammenführen von Spielständen.

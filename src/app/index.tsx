@@ -19,6 +19,7 @@ import {
   type WorldId,
 } from '../lib/game';
 import type { Walker } from '../world/life';
+import { useDev } from '../state/DevProvider';
 import { useGame } from '../state/GameProvider';
 import { colors, fonts } from '../theme';
 
@@ -30,6 +31,7 @@ export default function WorldScreen() {
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
   const { state, totalKm, build, demolish, expand, switchWorld } = useGame();
+  const dev = useDev();
   const worldId = state.activeWorld;
   const world = state.worlds[worldId];
   const [tool, setTool] = useState<Tool>({ kind: 'build', item: firstItem(worldId) });
@@ -123,6 +125,7 @@ export default function WorldScreen() {
           onPersonPress={onPersonPress}
           showExpansions={tool.kind === 'expand'}
           animate={focused}
+          hour={dev.hour}
         />
         <Pressable style={styles.residentsButton} onPress={() => setShowResidents(true)}>
           <Text style={styles.residentsGlyph}>住</Text>

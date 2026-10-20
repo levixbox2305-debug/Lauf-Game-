@@ -18,7 +18,7 @@ import {
   WORLD_BY_ID,
   worldUnlocked,
 } from '../lib/game';
-import { saveGame } from '../lib/storage';
+import { saveGame, type Profile } from '../lib/storage';
 import { mergeStates, sameState } from '../lib/sync';
 
 type GameApi = {
@@ -36,12 +36,12 @@ type GameApi = {
 
 const GameContext = createContext<GameApi | null>(null);
 
-export function GameProvider({ children, initial }: { children: ReactNode; initial: GameState }) {
+export function GameProvider({ children, initial, profile }: { children: ReactNode; initial: GameState; profile: Profile }) {
   const [state, setState] = useState<GameState>(initial);
 
   useEffect(() => {
-    saveGame(state).catch((e) => console.warn('Speichern fehlgeschlagen', e));
-  }, [state]);
+    saveGame(state, profile).catch((e) => console.warn('Speichern fehlgeschlagen', e));
+  }, [state, profile]);
 
   const km = useMemo(() => totalKm(state.runs), [state.runs]);
 

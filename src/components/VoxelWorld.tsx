@@ -20,6 +20,8 @@ type Props = {
   showExpansions: boolean;
   /** Pauses the residents while the screen isn't visible, to save battery. */
   animate: boolean;
+  /** Time of day the residents live by; defaults to the real clock. */
+  hour?: number | null;
 };
 
 const PADDING = 6; // in voxel units
@@ -68,7 +70,7 @@ function reconcile(current: Walker[], world: World, residents: CharacterId[]): W
   return [...kept.map((w) => ({ ...w, path: [], until: 0 })), ...spawned];
 }
 
-function useResidents(world: World, worldId: WorldId, residents: CharacterId[], animate: boolean) {
+function useResidents(world: World, worldId: WorldId, residents: CharacterId[], animate: boolean, hourOverride: number | null) {
   const [sim, setSim] = useState(() => ({ world, residents, walkers: reconcile([], world, residents) }));
 
   // Adjusting state while rendering (instead of in an effect) avoids a frame with stale walkers.
@@ -80,19 +82,19 @@ function useResidents(world: World, worldId: WorldId, residents: CharacterId[], 
     if (!animate) return;
     const timer = setInterval(() => {
       const now = Date.now();
-      const hour = new Date(now).getHours();
+      const hour = hourOverride ?? new Date(now).getHours();
       setSim((s) => ({
         ...s,
         walkers: s.walkers.map((w) => stepWalker(w, s.world, worldId, hour, now, TICK_MS / 1000, Math.random)),
       }));
     }, TICK_MS);
     return () => clearInterval(timer);
-  }, [animate, worldId]);
+  }, [animate, worldId, hourOverride]);
 
   return sim.walkers;
 }
 
-function VoxelWorldImpl({ world, worldId, residents, onTilePress, onPersonPress, showExpansions, animate }: Props) {
+function VoxelWorldImpl({ world, worldId, residents, onTilePress, onPersonPress, showExpansions, animate, hour = null }: Props) {
   const ref = useRef<HostInstance>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
@@ -102,7 +104,7 @@ function VoxelWorldImpl({ world, worldId, residents, onTilePress, onPersonPress,
     return { bounds, chunks: chunks.map((c) => ({ depth: c.depth, picture: meshPicture(c.mesh) })) };
   }, [world, worldId]);
 
-  const walkers = useResidents(world, worldId, residents, animate);
+  const walkers = useResidents(world, worldId, residents, animate, hour);
 
   const view = useMemo(() => {
     const { minX, minY, maxX, maxY } = scene.bounds;

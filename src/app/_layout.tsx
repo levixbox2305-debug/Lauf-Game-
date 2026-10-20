@@ -3,25 +3,43 @@ import { restoreRun } from '../lib/tracker';
 
 import { Tabs } from 'expo-router/js-tabs';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import { InkTabBar } from '../components/InkTabBar';
 import type { GameState } from '../lib/game';
-import { loadGame } from '../lib/storage';
+import { clearSandbox, loadGame, loadProfile, saveProfile, type Profile } from '../lib/storage';
 import { CloudProvider } from '../state/CloudProvider';
+import { DevProvider } from '../state/DevProvider';
 import { GameProvider } from '../state/GameProvider';
 import { colors } from '../theme';
 
 export default function RootLayout() {
-  const [initial, setInitial] = useState<GameState | null>(null);
+  // `generation` remounts the game whenever a different save is loaded.
+  const [loaded, setLoaded] = useState<{ profile: Profile; game: GameState; generation: number } | null>(null);
+  const [hour, setHour] = useState<number | null>(null);
 
   useEffect(() => {
-    loadGame().then(setInitial);
+    loadProfile()
+      .then(async (profile) => setLoaded({ profile, game: await loadGame(profile), generation: 0 }))
+      .catch((e) => console.warn('Spielstand konnte nicht geladen werden', e));
     restoreRun().catch((e) => console.warn('Lauf konnte nicht wiederhergestellt werden', e));
   }, []);
 
-  if (!initial) {
+  const switchProfile = useCallback(async (profile: Profile, options?: { reset?: boolean }) => {
+    if (options?.reset) await clearSandbox();
+    await saveProfile(profile);
+    setHour(null);
+    const game = await loadGame(profile);
+    setLoaded((prev) => ({ profile, game, generation: (prev?.generation ?? 0) + 1 }));
+  }, []);
+
+  const dev = useMemo(
+    () => ({ profile: loaded?.profile ?? 'main', switchProfile: (p: Profile, o?: { reset?: boolean }) => void switchProfile(p, o), hour, setHour }),
+    [loaded?.profile, switchProfile, hour],
+  );
+
+  if (!loaded) {
     return (
       <View
         style={{
@@ -36,8 +54,9 @@ export default function RootLayout() {
   }
 
   return (
-    <GameProvider initial={initial}>
-      <CloudProvider>
+    <DevProvider value={dev}>
+    <GameProvider key={loaded.generation} initial={loaded.game} profile={loaded.profile}>
+      <CloudProvider disabled={loaded.profile === 'sandbox'}>
         <StatusBar style="dark" />
         <Tabs
           tabBar={(props) => <InkTabBar {...props} />}
@@ -51,5 +70,6 @@ export default function RootLayout() {
         </Tabs>
       </CloudProvider>
     </GameProvider>
+    </DevProvider>
   );
 }
