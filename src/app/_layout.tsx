@@ -4,16 +4,13 @@ import { restoreRun } from '../lib/tracker';
 import { Tabs } from 'expo-router/js-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 
+import { InkTabBar } from '../components/InkTabBar';
 import type { GameState } from '../lib/game';
 import { loadGame } from '../lib/storage';
 import { GameProvider } from '../state/GameProvider';
-import { colors, fonts } from '../theme';
-
-function TabIcon({ glyph, color }: { glyph: string; color: string }) {
-  return <Text style={{ fontFamily: fonts.serif, fontSize: 20, color }}>{glyph}</Text>;
-}
+import { colors } from '../theme';
 
 export default function RootLayout() {
   const [initial, setInitial] = useState<GameState | null>(null);
@@ -35,26 +32,11 @@ export default function RootLayout() {
     <GameProvider initial={initial}>
       <StatusBar style="dark" />
       <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: colors.background,
-          tabBarInactiveTintColor: colors.inkSoft,
-          tabBarStyle: { backgroundColor: colors.ink, borderTopWidth: 0 },
-          tabBarLabelStyle: { fontFamily: fonts.serif },
-          sceneStyle: { backgroundColor: colors.background },
-        }}>
-        <Tabs.Screen
-          name="index"
-          options={{ title: 'Welt', tabBarIcon: ({ focused }) => <TabIcon glyph="島" color={focused ? colors.sakura : colors.inkSoft} /> }}
-        />
-        <Tabs.Screen
-          name="run"
-          options={{ title: 'Laufen', tabBarIcon: ({ focused }) => <TabIcon glyph="走" color={focused ? colors.sakura : colors.inkSoft} /> }}
-        />
-        <Tabs.Screen
-          name="history"
-          options={{ title: 'Verlauf', tabBarIcon: ({ focused }) => <TabIcon glyph="記" color={focused ? colors.sakura : colors.inkSoft} /> }}
-        />
+        tabBar={(props) => <InkTabBar {...props} />}
+        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.background } }}>
+        <Tabs.Screen name="index" options={{ title: 'Welt' }} />
+        <Tabs.Screen name="run" options={{ title: 'Laufen' }} />
+        <Tabs.Screen name="history" options={{ title: 'Verlauf' }} />
       </Tabs>
     </GameProvider>
   );
