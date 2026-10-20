@@ -13,6 +13,10 @@ import {
   type RunInput,
   type RunOutcome,
   type StreakItemId,
+  type Tile,
+  type WorldId,
+  WORLD_BY_ID,
+  worldUnlocked,
 } from '../lib/game';
 import { saveGame } from '../lib/storage';
 import { mergeStates, sameState } from '../lib/sync';
@@ -24,6 +28,7 @@ type GameApi = {
   build: (index: number, item: ItemId) => string | null;
   demolish: (index: number) => string | null;
   expand: (index: number) => string | null;
+  switchWorld: (id: WorldId) => string | null;
   /** Folds in a save from the cloud; never loses local runs. */
   mergeRemote: (remote: GameState) => void;
   reset: () => void;
@@ -49,13 +54,17 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
     [state],
   );
 
-  // Actions validate against the current state and return an error message, or null on success.
+  const world = state.worlds[state.activeWorld];
+
+  // Actions work on the active world. They validate against the current state and
+  // return an error message, or null on success.
   const build = useCallback(
     (index: number, itemId: ItemId) => {
       const item = ITEM_BY_ID[itemId];
-      const tile = state.world.tiles[index];
+      const tile = world.tiles[index];
       if (!tile?.unlocked) return 'Hier ist noch kein Land.';
       if (tile.item) return 'Hier steht schon etwas.';
+      if (item.world !== 'any' && item.world !== state.activeWorld) return `${item.name} passt nicht in diese Welt.`;
       if (item.streakWeeks) {
         if (!state.inventory[itemId as StreakItemId]) {
           return `${item.name} bekommst du für ${item.streakWeeks} ${item.streakWeeks === 1 ? 'Woche' : 'Wochen'} Streak.`;
@@ -65,57 +74,54 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
         if (state.energy < item.cost) return `Dir fehlen ${item.cost - state.energy} ⚡ – ab auf die Strecke!`;
       }
       setState((s) => {
-        const tiles = s.world.tiles.slice();
-        tiles[index] = { ...tiles[index], item: itemId };
         const inventory = { ...s.inventory };
         if (item.streakWeeks) inventory[itemId as StreakItemId] = (inventory[itemId as StreakItemId] ?? 1) - 1;
-        return { ...s, energy: s.energy - item.cost, inventory, world: { ...s.world, tiles }, updatedAt: Date.now() };
+        return { ...updateTile(s, index, { item: itemId }), energy: s.energy - item.cost, inventory };
       });
       return null;
     },
-    [state, km],
+    [state, world, km],
   );
 
   const demolish = useCallback(
     (index: number) => {
-      const tile = state.world.tiles[index];
+      const tile = world.tiles[index];
       if (!tile?.item) return 'Hier steht nichts.';
       const item = ITEM_BY_ID[tile.item];
       setState((s) => {
-        const tiles = s.world.tiles.slice();
-        tiles[index] = { ...tiles[index], item: null };
+        const next = updateTile(s, index, { item: null });
         // Collectibles go back into the inventory instead of being sold.
         if (item.streakWeeks) {
           const id = item.id as StreakItemId;
-          return {
-            ...s,
-            inventory: { ...s.inventory, [id]: (s.inventory[id] ?? 0) + 1 },
-            world: { ...s.world, tiles },
-            updatedAt: Date.now(),
-          };
+          return { ...next, inventory: { ...s.inventory, [id]: (s.inventory[id] ?? 0) + 1 } };
         }
-        return { ...s, energy: s.energy + Math.floor(item.cost * REFUND_RATE), world: { ...s.world, tiles }, updatedAt: Date.now() };
+        return { ...next, energy: s.energy + Math.floor(item.cost * REFUND_RATE) };
       });
       return null;
     },
-    [state],
+    [world],
   );
 
   const expand = useCallback(
     (index: number) => {
-      const tile = state.world.tiles[index];
+      const tile = world.tiles[index];
       if (!tile || tile.unlocked) return null;
-      if (!isNeighborOfLand(state.world, index)) return 'Land kann nur am Rand der Insel wachsen.';
-      const cost = expansionCost(state.world);
+      if (!isNeighborOfLand(world, index)) return 'Land kann nur am Rand wachsen.';
+      const cost = expansionCost(world);
       if (state.energy < cost) return `Neues Land kostet ${cost} ⚡. Dir fehlen ${cost - state.energy} ⚡.`;
-      setState((s) => {
-        const tiles = s.world.tiles.slice();
-        tiles[index] = { ...tiles[index], unlocked: true };
-        return { ...s, energy: s.energy - cost, world: { ...s.world, tiles }, updatedAt: Date.now() };
-      });
+      setState((s) => ({ ...updateTile(s, index, { unlocked: true }), energy: s.energy - cost }));
       return null;
     },
-    [state],
+    [state.energy, world],
+  );
+
+  const switchWorld = useCallback(
+    (id: WorldId) => {
+      if (!worldUnlocked(id, km)) return `${WORLD_BY_ID[id].name} öffnet sich ab ${WORLD_BY_ID[id].unlockKm} km.`;
+      setState((s) => (s.activeWorld === id ? s : { ...s, activeWorld: id }));
+      return null;
+    },
+    [km],
   );
 
   const mergeRemote = useCallback((remote: GameState) => {
@@ -128,11 +134,19 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
   const reset = useCallback(() => setState(createGame()), []);
 
   const api = useMemo(
-    () => ({ state, totalKm: km, addRun, build, demolish, expand, mergeRemote, reset }),
-    [state, km, addRun, build, demolish, expand, mergeRemote, reset],
+    () => ({ state, totalKm: km, addRun, build, demolish, expand, switchWorld, mergeRemote, reset }),
+    [state, km, addRun, build, demolish, expand, switchWorld, mergeRemote, reset],
   );
 
   return <GameContext.Provider value={api}>{children}</GameContext.Provider>;
+}
+
+/** Changes one tile of the active world and marks the save as changed. */
+function updateTile(s: GameState, index: number, change: Partial<Tile>): GameState {
+  const world = s.worlds[s.activeWorld];
+  const tiles = world.tiles.slice();
+  tiles[index] = { ...tiles[index], ...change };
+  return { ...s, worlds: { ...s.worlds, [s.activeWorld]: { ...world, tiles } }, updatedAt: Date.now() };
 }
 
 export function useGame(): GameApi {

@@ -73,11 +73,49 @@ function shade(hex: string, f: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
-export function buildMesh(grid: VoxelGrid): Mesh {
-  const voxels = [...grid.entries()];
-  // Painter's algorithm: voxels further from the viewer are drawn first.
-  voxels.sort((a, b) => a[0] + a[1] + a[2] - (b[0] + b[1] + b[2]) || a[2] - b[2]);
+/**
+ * Painter's algorithm: voxels further from the viewer are drawn first. Sorting by (x + y, z)
+ * is a valid back-to-front order for unit cubes and lets the world be cut into depth slices.
+ */
+const sortKey = (x: number, y: number) => x + y;
 
+export function buildMesh(grid: VoxelGrid): Mesh {
+  return meshFrom(sortedVoxels(grid), grid);
+}
+
+export type DepthChunk = { depth: number; mesh: Mesh };
+
+/**
+ * Splits the world into slices along the view direction (x + y), so moving characters can be
+ * drawn between them: in front of what is behind them, behind what is in front.
+ */
+export function buildChunks(grid: VoxelGrid, sliceSize: number): { chunks: DepthChunk[]; bounds: Mesh['bounds'] } {
+  const groups = new Map<number, [number, number, number, string][]>();
+  for (const v of sortedVoxels(grid)) {
+    const depth = Math.floor(sortKey(v[0], v[1]) / sliceSize);
+    let list = groups.get(depth);
+    if (!list) groups.set(depth, (list = []));
+    list.push(v);
+  }
+  const chunks = [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([depth, voxels]) => ({ depth, mesh: meshFrom(voxels, grid) }));
+  const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  for (const { mesh } of chunks) {
+    bounds.minX = Math.min(bounds.minX, mesh.bounds.minX);
+    bounds.minY = Math.min(bounds.minY, mesh.bounds.minY);
+    bounds.maxX = Math.max(bounds.maxX, mesh.bounds.maxX);
+    bounds.maxY = Math.max(bounds.maxY, mesh.bounds.maxY);
+  }
+  if (!chunks.length) Object.assign(bounds, { minX: 0, minY: 0, maxX: 0, maxY: 0 });
+  return { chunks, bounds };
+}
+
+function sortedVoxels(grid: VoxelGrid) {
+  const voxels = [...grid.entries()];
+  voxels.sort((a, b) => sortKey(a[0], a[1]) - sortKey(b[0], b[1]) || a[2] - b[2]);
+  return voxels;
+}
+
+function meshFrom(voxels: [number, number, number, string][], grid: VoxelGrid): Mesh {
   const vertices: Point[] = [];
   const colors: string[] = [];
   const indices: number[] = [];

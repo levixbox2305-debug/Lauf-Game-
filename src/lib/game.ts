@@ -1,6 +1,24 @@
 // Game rules: how running turns into energy and what energy can build.
 
+import { newResidentsForRun, type CharacterId } from './characters';
+
+export type WorldId = 'island' | 'city' | 'mountain';
+
+export type WorldDef = { id: WorldId; name: string; glyph: string; unlockKm: number };
+
+/** All worlds share one energy pool; new ones open up with total kilometres. */
+export const WORLDS: WorldDef[] = [
+  { id: 'island', name: 'Insel', glyph: '島', unlockKm: 0 },
+  { id: 'city', name: 'Stadt', glyph: '町', unlockKm: 50 },
+  { id: 'mountain', name: 'Berg', glyph: '山', unlockKm: 150 },
+];
+
+export const WORLD_BY_ID = Object.fromEntries(WORLDS.map((w) => [w.id, w])) as Record<WorldId, WorldDef>;
+
+export const worldUnlocked = (id: WorldId, km: number) => km >= WORLD_BY_ID[id].unlockKm;
+
 export type ShopItemId =
+  // Island
   | 'path'
   | 'bamboo'
   | 'sakura'
@@ -11,7 +29,22 @@ export type ShopItemId =
   | 'torii'
   | 'teahouse'
   | 'pagoda'
-  | 'castle';
+  | 'castle'
+  // City
+  | 'road'
+  | 'streettree'
+  | 'vending'
+  | 'house'
+  | 'konbini'
+  | 'ramen'
+  | 'station'
+  | 'tower'
+  // Mountain
+  | 'stairs'
+  | 'snowpine'
+  | 'jizo'
+  | 'onsen'
+  | 'temple';
 
 /** Collectibles that can only be earned through weekly streaks. */
 export type StreakItemId = 'bell' | 'koinobori' | 'zen' | 'cat' | 'fuji' | 'goldtorii' | 'goldpagoda';
@@ -24,33 +57,53 @@ export type ItemDef = {
   cost: number;
   /** Total kilometres run before this item becomes available. */
   unlockKm: number;
+  /** Which world it can be built in; collectibles fit everywhere. */
+  world: WorldId | 'any';
   /** Set for collectibles: the streak length (in weeks) that awards one. */
   streakWeeks?: number;
 };
 
 export const ITEMS: ItemDef[] = [
-  { id: 'path', name: 'Weg', cost: 2, unlockKm: 0 },
-  { id: 'bamboo', name: 'Bambus', cost: 6, unlockKm: 0 },
-  { id: 'sakura', name: 'Sakura', cost: 8, unlockKm: 0 },
-  { id: 'lantern', name: 'Laterne', cost: 15, unlockKm: 1 },
-  { id: 'pine', name: 'Kiefer', cost: 10, unlockKm: 2 },
-  { id: 'rice', name: 'Reisfeld', cost: 15, unlockKm: 3 },
-  { id: 'pond', name: 'Koi-Teich', cost: 25, unlockKm: 5 },
-  { id: 'torii', name: 'Torii', cost: 40, unlockKm: 8 },
-  { id: 'teahouse', name: 'Teehaus', cost: 60, unlockKm: 12 },
-  { id: 'pagoda', name: 'Pagode', cost: 120, unlockKm: 25 },
-  { id: 'castle', name: 'Burg', cost: 200, unlockKm: 42.2 },
+  { id: 'path', name: 'Weg', cost: 2, unlockKm: 0, world: 'island' },
+  { id: 'bamboo', name: 'Bambus', cost: 6, unlockKm: 0, world: 'island' },
+  { id: 'sakura', name: 'Sakura', cost: 8, unlockKm: 0, world: 'island' },
+  { id: 'lantern', name: 'Laterne', cost: 15, unlockKm: 1, world: 'island' },
+  { id: 'pine', name: 'Kiefer', cost: 10, unlockKm: 2, world: 'island' },
+  { id: 'rice', name: 'Reisfeld', cost: 15, unlockKm: 3, world: 'island' },
+  { id: 'pond', name: 'Koi-Teich', cost: 25, unlockKm: 5, world: 'island' },
+  { id: 'torii', name: 'Torii', cost: 40, unlockKm: 8, world: 'island' },
+  { id: 'teahouse', name: 'Teehaus', cost: 60, unlockKm: 12, world: 'island' },
+  { id: 'pagoda', name: 'Pagode', cost: 120, unlockKm: 25, world: 'island' },
+  { id: 'castle', name: 'Burg', cost: 200, unlockKm: 42.2, world: 'island' },
+
+  { id: 'road', name: 'Straße', cost: 3, unlockKm: 50, world: 'city' },
+  { id: 'streettree', name: 'Allee-Baum', cost: 8, unlockKm: 50, world: 'city' },
+  { id: 'vending', name: 'Automat', cost: 10, unlockKm: 52, world: 'city' },
+  { id: 'house', name: 'Wohnhaus', cost: 40, unlockKm: 55, world: 'city' },
+  { id: 'konbini', name: 'Konbini', cost: 60, unlockKm: 60, world: 'city' },
+  { id: 'ramen', name: 'Ramen-Laden', cost: 70, unlockKm: 70, world: 'city' },
+  { id: 'station', name: 'Bahnhof', cost: 150, unlockKm: 85, world: 'city' },
+  { id: 'tower', name: 'Hochhaus', cost: 250, unlockKm: 110, world: 'city' },
+
+  { id: 'stairs', name: 'Steintreppe', cost: 4, unlockKm: 150, world: 'mountain' },
+  { id: 'snowpine', name: 'Schneekiefer', cost: 10, unlockKm: 150, world: 'mountain' },
+  { id: 'jizo', name: 'Jizo', cost: 12, unlockKm: 155, world: 'mountain' },
+  { id: 'onsen', name: 'Onsen', cost: 80, unlockKm: 165, world: 'mountain' },
+  { id: 'temple', name: 'Bergtempel', cost: 200, unlockKm: 190, world: 'mountain' },
 ];
 
 export const STREAK_ITEMS: ItemDef[] = [
-  { id: 'bell', name: 'Glocke', cost: 0, unlockKm: 0, streakWeeks: 1 },
-  { id: 'koinobori', name: 'Koinobori', cost: 0, unlockKm: 0, streakWeeks: 2 },
-  { id: 'zen', name: 'Steingarten', cost: 0, unlockKm: 0, streakWeeks: 4 },
-  { id: 'cat', name: 'Winkekatze', cost: 0, unlockKm: 0, streakWeeks: 8 },
-  { id: 'fuji', name: 'Fuji', cost: 0, unlockKm: 0, streakWeeks: 12 },
-  { id: 'goldtorii', name: 'Gold-Torii', cost: 0, unlockKm: 0, streakWeeks: 26 },
-  { id: 'goldpagoda', name: 'Gold-Pagode', cost: 0, unlockKm: 0, streakWeeks: 52 },
+  { id: 'bell', name: 'Glocke', cost: 0, unlockKm: 0, world: 'any', streakWeeks: 1 },
+  { id: 'koinobori', name: 'Koinobori', cost: 0, unlockKm: 0, world: 'any', streakWeeks: 2 },
+  { id: 'zen', name: 'Steingarten', cost: 0, unlockKm: 0, world: 'any', streakWeeks: 4 },
+  { id: 'cat', name: 'Winkekatze', cost: 0, unlockKm: 0, world: 'any', streakWeeks: 8 },
+  { id: 'fuji', name: 'Fuji', cost: 0, unlockKm: 0, world: 'any', streakWeeks: 12 },
+  { id: 'goldtorii', name: 'Gold-Torii', cost: 0, unlockKm: 0, world: 'any', streakWeeks: 26 },
+  { id: 'goldpagoda', name: 'Gold-Pagode', cost: 0, unlockKm: 0, world: 'any', streakWeeks: 52 },
 ];
+
+/** Tiles residents can walk across; every other item is in the way. */
+export const WALKABLE_ITEMS = new Set<ItemId>(['path', 'road', 'stairs']);
 
 export const ITEM_BY_ID = Object.fromEntries([...ITEMS, ...STREAK_ITEMS].map((i) => [i.id, i])) as Record<ItemId, ItemDef>;
 
@@ -86,10 +139,14 @@ export type RunRecord = {
 };
 
 export type GameState = {
-  version: 3;
+  version: 4;
   energy: number;
   runs: RunRecord[];
-  world: World;
+  worlds: Record<WorldId, World>;
+  /** The world shown on the world screen. */
+  activeWorld: WorldId;
+  /** Characters that moved in after their challenge was completed. */
+  residents: CharacterId[];
   /** Collectibles earned but not yet placed. */
   inventory: Partial<Record<StreakItemId, number>>;
   /** Streak lengths whose reward has already been handed out. */
@@ -101,7 +158,9 @@ export type GameState = {
 const WORLD_SIZE = 11;
 const START_RADIUS = 1; // 3x3 starting island
 
-export function createWorld(): World {
+const START_ITEM: Record<WorldId, ItemId> = { island: 'sakura', city: 'streettree', mountain: 'snowpine' };
+
+export function createWorld(id: WorldId = 'island'): World {
   const mid = Math.floor(WORLD_SIZE / 2);
   const tiles: Tile[] = [];
   for (let r = 0; r < WORLD_SIZE; r++) {
@@ -110,12 +169,27 @@ export function createWorld(): World {
       tiles.push({ unlocked, item: null });
     }
   }
-  tiles[mid * WORLD_SIZE + mid].item = 'sakura';
+  tiles[mid * WORLD_SIZE + mid].item = START_ITEM[id];
   return { size: WORLD_SIZE, tiles };
 }
 
+const createWorlds = (): Record<WorldId, World> => ({
+  island: createWorld('island'),
+  city: createWorld('city'),
+  mountain: createWorld('mountain'),
+});
+
 export function createGame(): GameState {
-  return { version: 3, energy: 0, runs: [], world: createWorld(), inventory: {}, claimedStreaks: [] };
+  return {
+    version: 4,
+    energy: 0,
+    runs: [],
+    worlds: createWorlds(),
+    activeWorld: 'island',
+    residents: [],
+    inventory: {},
+    claimedStreaks: [],
+  };
 }
 
 // Version 1 used emoji items; map them onto the Japanese set, refund what has no equivalent.
@@ -134,11 +208,13 @@ const V1_ITEMS: Record<string, { id: ItemId | null; cost: number }> = {
   castle: { id: 'castle', cost: 200 },
 };
 
-type SavedState = { version: number; energy: number; runs: RunRecord[]; world: World } & Partial<Omit<GameState, 'version'>>;
+type SavedState = { version: number; energy: number; runs: RunRecord[]; world?: World } & Partial<
+  Omit<GameState, 'version'>
+>;
 
 export function migrate(raw: SavedState): GameState {
   let state = raw;
-  if (state.version === 1) {
+  if (state.version === 1 && state.world) {
     let refund = 0;
     const tiles = state.world.tiles.map((t) => {
       if (!t.item) return t;
@@ -153,6 +229,11 @@ export function migrate(raw: SavedState): GameState {
     const { weeks } = streakInfo(state.runs);
     const claimedStreaks = STREAK_ITEMS.map((i) => i.streakWeeks!).filter((w) => w <= weeks);
     state = { ...state, version: 3, inventory: {}, claimedStreaks };
+  }
+  if (state.version === 3) {
+    // One island became several worlds; the existing island keeps everything that was built.
+    const { world, ...rest } = state;
+    state = { ...rest, version: 4, worlds: { ...createWorlds(), island: world ?? createWorld() }, activeWorld: 'island', residents: [] };
   }
   return state as GameState;
 }
@@ -280,6 +361,8 @@ export type RunOutcome = {
   record: RunRecord;
   /** Collectibles awarded by this run. */
   rewards: StreakItemId[];
+  /** Characters whose challenge this run completed. */
+  newResidents: CharacterId[];
   streak: StreakInfo;
 };
 
@@ -298,7 +381,9 @@ export function applyRun(state: GameState, run: RunInput): RunOutcome {
   };
 
   const withRun = claimStreakRewards({ ...state, energy: state.energy + record.energy, runs: [record, ...state.runs] }, run.endedAt);
-  return { state: withRun.state, record, rewards: withRun.rewards, streak: withRun.streak };
+  const newResidents = newResidentsForRun(withRun.state, record);
+  const next = newResidents.length ? { ...withRun.state, residents: [...withRun.state.residents, ...newResidents] } : withRun.state;
+  return { state: next, record, rewards: withRun.rewards, newResidents, streak: withRun.streak };
 }
 
 /** Hands out every streak collectible the runs have earned but that wasn't given yet. */
@@ -315,4 +400,13 @@ export function claimStreakRewards(state: GameState, now = Date.now()): { state:
     rewards,
     streak,
   };
+}
+
+/** Every tile index in a world that holds the given item. */
+export function tilesWith(world: World, item: ItemId): number[] {
+  const result: number[] = [];
+  world.tiles.forEach((t, i) => {
+    if (t.unlocked && t.item === item) result.push(i);
+  });
+  return result;
 }

@@ -8,6 +8,12 @@ Lauf-Tracker, so simpel wie eine normale Running-App – aber jeder Kilometer l�
   Pro km gibt es 10 ⚡. Läufe mit Ø über 22 km/h werden nicht gewertet (Rad/Auto/GPS-Fehler).
 - **Welt**: Mit Energie Land gewinnen (jedes Stück wird teurer) und bauen: Weg, Bambus, Sakura, Laterne, Kiefer,
   Reisfeld, Koi-Teich, Torii, Teehaus, Pagode – und die Burg erst nach einem Marathon (42,2 km).
+- **Welten**: Insel zum Start, **Stadt** ab 50 km (Straßen, Wohnhaus, Konbini, Ramen-Laden, Bahnhof, Hochhaus …),
+  **Berg** ab 150 km (Schneekiefer, Jizo, Onsen, Bergtempel). Energie ist gemeinsam, oben im Welt-Tab wechselst du.
+- **Bewohner**: Jedes Gebäude hat einen Bewohner mit einer Lauf-Challenge (z. B. Teehaus → „Lauf 2 km am Stück“ →
+  Teemeisterin Hana zieht ein). Jeder passende Lauf zählt automatisch. Die Bewohner leben nach echter Uhrzeit:
+  morgens spazieren, tagsüber arbeiten, abends treffen, nachts schlafen (der Nachtwächter umgekehrt).
+  Tippe auf eine Figur, um zu sehen, was sie gerade macht. Übersicht: 住-Knopf in der Welt.
 - **Streaks**: Eine Woche zählt ab 2 Läufen (je mind. 1 km). Jede Woche in Folge gibt +10 % Energie (max. +50 %),
   und bei 1, 2, 4, 8, 12, 26 und 52 Wochen gibt es seltene Sammelobjekte, die man nicht kaufen kann:
   Glocke, Koinobori, Steingarten, Winkekatze, Fuji, Gold-Torii, Gold-Pagode.
@@ -43,7 +49,7 @@ Bis dahin speichert die App lokal weiter und sichert nach, sobald die Verbindung
 
 ## Tests
 
-`npm test` prüft Streak-Regeln und das Zusammenführen von Spielständen.
+`npm test` prüft Streak-Regeln, Challenges, den Tagesablauf der Bewohner und das Zusammenführen von Spielständen.
 
 ## Mit Expo Go starten
 
@@ -66,7 +72,9 @@ Im Dev-Modus gibt es auf dem Lauf-Tab Buttons für Testläufe.
 | --- | --- |
 | `src/app/` | Screens (Expo Router Tabs): Welt, Laufen, Verlauf |
 | `src/world/voxels.ts` | Voxel-Engine: Gitter, isometrische Projektion, Mesh für Skia |
-| `src/world/models.ts` | Voxel-Modelle (Sakura, Torii, Pagode …) und Aufbau der Insel |
+| `src/world/models*.ts` | Voxel-Modelle pro Welt, Figuren, Aufbau der Welt |
+| `src/world/life.ts` | Tagesablauf und Wegfindung der Bewohner |
+| `src/lib/characters.ts` | Bewohner und ihre Challenges |
 | `src/components/VoxelWorld.tsx` | Zeichnet die Welt mit Skia, Tippen → Kachel |
 | `src/lib/game.ts` | Spielregeln: Gegenstände, Kosten, Level, Energie, Wochenstatistik |
 | `src/lib/tracker.ts` | GPS-Tracking mit Pause, Hintergrund-Task und Filtern |

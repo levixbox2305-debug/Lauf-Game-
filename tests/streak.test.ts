@@ -28,9 +28,11 @@ r = { ...r, runs: [] }; // pretend streak was lost
 for (const d of [1, 0]) r = applyRun(r, run(d)).state;
 eq('bell not given twice', r.inventory.bell, 1);
 // migration from v2 doesn't award retroactively
-const v2 = { version: 2, energy: 5, runs: s.runs, world: s.world };
+const v2 = { version: 2, energy: 5, runs: s.runs, world: s.worlds.island };
 const m = migrate(v2 as never);
-eq('migrate v2', [m.version, m.inventory, m.claimedStreaks], [3, {}, [1, 2]]);
+eq('migrate v2', [m.version, m.inventory, m.claimedStreaks, m.activeWorld, m.residents], [4, {}, [1, 2], 'island', []]);
+eq('migrate keeps island', m.worlds.island, s.worlds.island);
+eq('migrate adds city', m.worlds.city.tiles.filter((t) => t.unlocked).length, 9);
 // too fast run gets no bonus
 const fast = applyRun(s, { ...run(0, 10), durationS: 600 });
 eq('rejected run no bonus', [fast.record.energy, fast.record.rejectedReason !== undefined], [0, true]);

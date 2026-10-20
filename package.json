@@ -39,7 +39,7 @@
     "lint": "expo lint",
     "postinstall": "node scripts/copy-canvaskit.js",
     "build:web": "expo export --platform web && node scripts/postexport-web.js dist",
-    "test": "tsx tests/streak.test.ts && tsx tests/merge.test.ts"
+    "test": "tsx tests/streak.test.ts && tsx tests/merge.test.ts && tsx tests/characters.test.ts && tsx tests/life.test.ts"
   },
   "private": true
 }

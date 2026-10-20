@@ -1,4 +1,4 @@
-import { applyRun, createGame, type GameState } from '../src/lib/game';
+import { applyRun, createGame, type GameState, type Tile } from '../src/lib/game';
 import { mergeStates, sameState } from '../src/lib/sync';
 const DAY = 86400000;
 const now = Date.now();
@@ -6,13 +6,17 @@ const run = (daysAgo: number, km = 5) => ({ startedAt: now - daysAgo * DAY, ende
 let fails = 0;
 const eq = (name: string, got: unknown, want: unknown) => { const ok = JSON.stringify(got) === JSON.stringify(want); if (!ok) fails++; console.log(ok ? 'ok  ' : 'FAIL', name, ok ? '' : `got ${JSON.stringify(got)} want ${JSON.stringify(want)}`); };
 const touch = (s: GameState, t: number): GameState => ({ ...s, updatedAt: t });
+const withTile = (s: GameState, i: number, tile: Tile): GameState => {
+  const tiles = s.worlds.island.tiles.map((t, j) => (j === i ? tile : t));
+  return { ...s, worlds: { ...s.worlds, island: { ...s.worlds.island, tiles } } };
+};
 
 // Phone has a save; a brand-new device logs in -> must take the cloud save, not wipe it.
 let phone = touch(applyRun(createGame(), run(2)).state, 1000);
-phone = touch({ ...phone, world: { ...phone.world, tiles: phone.world.tiles.map((t, i) => (i === 0 ? { unlocked: true, item: 'bamboo' } : t)) } }, 2000);
+phone = touch(withTile(phone, 0, { unlocked: true, item: 'bamboo' }), 2000);
 const fresh = createGame();
 let m = mergeStates(fresh, phone);
-eq('fresh device takes cloud world', m.world.tiles[0], { unlocked: true, item: 'bamboo' });
+eq('fresh device takes cloud world', m.worlds.island.tiles[0], { unlocked: true, item: 'bamboo' });
 eq('fresh device takes cloud runs/energy', [m.runs.length, m.energy], [1, 50]);
 
 // Two devices each ran once while offline: both runs kept, energy of both counted.
@@ -44,7 +48,11 @@ const d2 = touch(applyRun(applyRun(createGame(), run(0.4)).state, run(0.3)).stat
 if (dow >= 1) eq('bell from both devices not doubled', mergeStates(d1, d2).inventory.bell, 1);
 
 // Placed collectible on the newer device stays placed, older device still has it in inventory -> no duplicate.
-const p1 = touch({ ...d1, inventory: {}, world: { ...d1.world, tiles: d1.world.tiles.map((t, i) => (i === 60 ? { ...t, item: 'bell' } : t)) } }, 9000);
+const p1 = touch({ ...withTile(d1, 60, { ...d1.worlds.island.tiles[60], item: 'bell' }), inventory: {} }, 9000);
 const pm = mergeStates(p1, d1);
-if (dow >= 1) eq('placed bell not duplicated', [pm.inventory.bell ?? 0, pm.world.tiles[60].item], [0, 'bell']);
+if (dow >= 1) eq('placed bell not duplicated', [pm.inventory.bell ?? 0, pm.worlds.island.tiles[60].item], [0, 'bell']);
+// Residents earned on either device are kept.
+const r1 = touch({ ...createGame(), residents: ['tea'] }, 9000);
+const r2 = touch({ ...applyRun(createGame(), run(1)).state, residents: ['farmer'] }, 1000);
+eq('residents merged', mergeStates(r1, r2).residents.sort(), ['farmer', 'tea']);
 process.exit(fails ? 1 : 0);

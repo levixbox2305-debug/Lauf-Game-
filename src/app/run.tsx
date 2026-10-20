@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ItemThumb } from '../components/ItemThumb';
+import { ItemThumb, PersonThumb } from '../components/ItemThumb';
 import { RouteSketch } from '../components/RouteSketch';
+import { CHARACTER_BY_ID, challengeText, openChallenges } from '../lib/characters';
 import {
   applyRun,
   ENERGY_PER_KM,
@@ -22,6 +23,9 @@ import { useScreenAwake } from '../lib/useScreenAwake';
 import { elapsedSeconds, finishRun, pauseRun, resumeRun, startRun, subscribe, toRoute, type FinishedRun } from '../lib/tracker';
 import { useGame } from '../state/GameProvider';
 import { colors, fonts } from '../theme';
+
+/** Test runs are for development; a build can also opt in for automated UI tests. */
+const SHOW_TEST_TOOLS = __DEV__ || process.env.EXPO_PUBLIC_TEST_TOOLS === '1';
 
 export default function RunScreen() {
   const insets = useSafeAreaInsets();
@@ -51,6 +55,7 @@ function Idle() {
   const streak = streakInfo(state.runs);
   const next = nextStreakReward(streak.weeks);
   const last = state.runs[0];
+  const challenges = openChallenges(state);
 
   const onStart = async () => {
     setBusy(true);
@@ -121,6 +126,24 @@ function Idle() {
         </View>
       )}
 
+      {challenges.length > 0 && (
+        <View style={styles.challengeCard}>
+          <Text style={styles.cardLabelDark}>Offene Challenges</Text>
+          {challenges.slice(0, 3).map((c) => (
+            <View key={c.id} style={styles.challengeRow}>
+              <PersonThumb id={c.id} size={34} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.challengeText}>{challengeText(c.challenge)}</Text>
+                <Text style={styles.challengeSub}>
+                  dann zieht {c.name} ein · {c.role}
+                </Text>
+              </View>
+            </View>
+          ))}
+          {challenges.length > 3 && <Text style={styles.challengeSub}>und {challenges.length - 3} weitere</Text>}
+        </View>
+      )}
+
       <View style={styles.startArea}>
         <Pressable style={({ pressed }) => [styles.startButton, pressed && { transform: [{ scale: 0.97 }] }]} onPress={onStart} disabled={busy}>
           <Text style={styles.startGlyph}>走</Text>
@@ -129,7 +152,7 @@ function Idle() {
         {error && <Text style={styles.error}>{error}</Text>}
       </View>
 
-      {__DEV__ && (
+      {SHOW_TEST_TOOLS && (
         <View style={styles.devRow}>
           <Pressable onPress={() => onSimulate()} style={styles.devButton}>
             <Text style={styles.devText}>Testlauf (2,5 km)</Text>
@@ -214,12 +237,12 @@ function Summary({ run, onDone }: { run: FinishedRun; onDone: () => void }) {
   const { width } = useWindowDimensions();
   // Preview what saving would award, without changing anything yet.
   const preview = applyRun(state, run);
-  const { record, rewards } = preview;
+  const { record, rewards, newResidents } = preview;
 
   const save = () => {
     addRun(run);
     onDone();
-    if (record.energy > 0 || rewards.length) router.navigate('/');
+    if (record.energy > 0 || rewards.length || newResidents.length) router.navigate('/');
   };
 
   return (
@@ -260,6 +283,22 @@ function Summary({ run, onDone }: { run: FinishedRun; onDone: () => void }) {
               <View key={id} style={styles.collectItem}>
                 <ItemThumb item={id} size={56} />
                 <Text style={styles.collectName}>{ITEM_BY_ID[id].name}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {newResidents.length > 0 && (
+        <View style={styles.collectCard}>
+          <Text style={styles.collectTitle}>住 Challenge geschafft – neu eingezogen</Text>
+          <View style={styles.collectRow}>
+            {newResidents.map((id) => (
+              <View key={id} style={styles.collectItem}>
+                <PersonThumb id={id} size={56} />
+                <Text style={styles.collectName}>
+                  {CHARACTER_BY_ID[id].name} · {CHARACTER_BY_ID[id].role}
+                </Text>
               </View>
             ))}
           </View>
@@ -340,6 +379,19 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   lastValue: { fontFamily: fonts.mono, fontSize: 15, color: colors.text, marginTop: 4 },
+  challengeCard: {
+    marginTop: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 8,
+  },
+  cardLabelDark: { fontFamily: fonts.serif, fontSize: 13, color: colors.textMuted, letterSpacing: 1 },
+  challengeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  challengeText: { fontFamily: fonts.serif, fontSize: 15, fontWeight: '700', color: colors.primary },
+  challengeSub: { fontFamily: fonts.serif, fontSize: 12, color: colors.textMuted },
   startArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   startButton: {
     width: 180,

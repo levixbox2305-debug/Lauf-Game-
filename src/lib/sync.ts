@@ -33,6 +33,8 @@ export function mergeStates(local: GameState, remote: GameState): GameState {
     energy,
     inventory,
     claimedStreaks: [...claimed].sort((a, b) => a - b),
+    // A character who moved in on either device stays.
+    residents: [...new Set([...newer.residents, ...older.residents])],
     updatedAt: Math.max(local.updatedAt ?? 0, remote.updatedAt ?? 0) || undefined,
   };
   // Runs from two devices together can complete a streak week neither had alone.

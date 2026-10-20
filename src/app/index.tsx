@@ -1,42 +1,87 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useIsFocused } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ItemThumb } from '../components/ItemThumb';
+import { ResidentsSheet } from '../components/ResidentsSheet';
 import { VoxelWorld } from '../components/VoxelWorld';
-import { expansionCost, ITEMS, levelFor, STREAK_ITEMS, type ItemId, type StreakItemId } from '../lib/game';
+import { CHARACTER_BY_ID, challengeText, charactersForItem } from '../lib/characters';
+import {
+  expansionCost,
+  ITEMS,
+  levelFor,
+  STREAK_ITEMS,
+  WORLDS,
+  worldUnlocked,
+  type ItemId,
+  type StreakItemId,
+  type WorldId,
+} from '../lib/game';
+import type { Walker } from '../world/life';
 import { useGame } from '../state/GameProvider';
 import { colors, fonts } from '../theme';
 
 type Tool = { kind: 'build'; item: ItemId } | { kind: 'expand' } | { kind: 'demolish' };
 
+const firstItem = (world: WorldId): ItemId => ITEMS.find((i) => i.world === world)!.id;
+
 export default function WorldScreen() {
   const insets = useSafeAreaInsets();
-  const { state, totalKm, build, demolish, expand } = useGame();
-  const [tool, setTool] = useState<Tool>({ kind: 'build', item: 'sakura' });
+  const focused = useIsFocused();
+  const { state, totalKm, build, demolish, expand, switchWorld } = useGame();
+  const worldId = state.activeWorld;
+  const world = state.worlds[worldId];
+  const [tool, setTool] = useState<Tool>({ kind: 'build', item: firstItem(worldId) });
   const [message, setMessage] = useState<string | null>(null);
+  const [showResidents, setShowResidents] = useState(false);
 
   useEffect(() => {
     if (!message) return;
-    const t = setTimeout(() => setMessage(null), 2500);
+    const t = setTimeout(() => setMessage(null), 3000);
     return () => clearTimeout(t);
   }, [message]);
 
+  const residents = useMemo(
+    () => state.residents.filter((id) => CHARACTER_BY_ID[id].world === worldId),
+    [state.residents, worldId],
+  );
+
   const onTilePress = useCallback(
     (index: number) => {
-      const tile = state.world.tiles[index];
+      const tile = world.tiles[index];
       if (!tile) return;
       let error: string | null = null;
       if (!tile.unlocked) error = expand(index);
       else if (tool.kind === 'demolish') error = demolish(index);
-      else if (tool.kind === 'build') error = build(index, tool.item);
-      else error = 'Tippe auf ein markiertes Feld im Wasser, um Land zu gewinnen.';
+      else if (tool.kind === 'build') {
+        error = build(index, tool.item);
+        // A new kind of building opens its resident's challenge.
+        const newcomer = charactersForItem(tool.item).find(
+          (c) => !state.residents.includes(c.id) && !world.tiles.some((t) => t.item === c.home),
+        );
+        if (!error && newcomer) {
+          error = `Neue Challenge: ${challengeText(newcomer.challenge)} – dann zieht ${newcomer.name} (${newcomer.role}) ein.`;
+        }
+      } else error = 'Tippe auf ein markiertes Feld im Wasser, um Land zu gewinnen.';
       setMessage(error);
     },
-    [state.world.tiles, tool, build, demolish, expand],
+    [world, tool, build, demolish, expand, state.residents],
   );
 
+  const onPersonPress = useCallback((w: Walker) => {
+    const c = CHARACTER_BY_ID[w.id];
+    setMessage(`${c.name} · ${c.role} – ${w.doing}`);
+  }, []);
+
+  const onWorldPress = (id: WorldId) => {
+    const error = switchWorld(id);
+    if (error) return setMessage(error);
+    if (id !== worldId) setTool({ kind: 'build', item: firstItem(id) });
+  };
+
   const level = levelFor(totalKm);
+  const worldPeople = Object.values(CHARACTER_BY_ID).filter((c) => c.world === worldId).length;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 8 }]}>
@@ -54,8 +99,37 @@ export default function WorldScreen() {
         {level.level}
       </Text>
 
+      <View style={styles.worldTabs}>
+        {WORLDS.map((w) => {
+          const open = worldUnlocked(w.id, totalKm);
+          const active = w.id === worldId;
+          return (
+            <Pressable key={w.id} onPress={() => onWorldPress(w.id)} style={[styles.worldTab, active && styles.worldTabActive]}>
+              <Text style={[styles.worldGlyph, active && styles.worldTextActive, !open && styles.worldLocked]}>{w.glyph}</Text>
+              <Text style={[styles.worldName, active && styles.worldTextActive, !open && styles.worldLocked]}>
+                {open ? w.name : `${w.unlockKm} km`}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       <View style={styles.worldBox}>
-        <VoxelWorld world={state.world} onTilePress={onTilePress} showExpansions={tool.kind === 'expand'} />
+        <VoxelWorld
+          world={world}
+          worldId={worldId}
+          residents={residents}
+          onTilePress={onTilePress}
+          onPersonPress={onPersonPress}
+          showExpansions={tool.kind === 'expand'}
+          animate={focused}
+        />
+        <Pressable style={styles.residentsButton} onPress={() => setShowResidents(true)}>
+          <Text style={styles.residentsGlyph}>住</Text>
+          <Text style={styles.residentsText}>
+            {residents.length}/{worldPeople}
+          </Text>
+        </Pressable>
         {message && (
           <View style={styles.toast} pointerEvents="none">
             <Text style={styles.toastText}>{message}</Text>
@@ -71,11 +145,11 @@ export default function WorldScreen() {
         <ToolChip
           glyph="島"
           label="Land"
-          sub={`${expansionCost(state.world)} ⚡`}
+          sub={`${expansionCost(world)} ⚡`}
           active={tool.kind === 'expand'}
           onPress={() => setTool({ kind: 'expand' })}
         />
-        {ITEMS.map((item) => {
+        {ITEMS.filter((item) => item.world === worldId).map((item) => {
           const locked = totalKm < item.unlockKm;
           return (
             <ToolChip
@@ -119,6 +193,8 @@ export default function WorldScreen() {
           onPress={() => setTool({ kind: 'demolish' })}
         />
       </ScrollView>
+
+      <ResidentsSheet visible={showResidents} onClose={() => setShowResidents(false)} state={state} worldId={worldId} />
     </View>
   );
 }
@@ -166,7 +242,40 @@ const styles = StyleSheet.create({
   sealText: { fontFamily: fonts.mono, color: colors.onPrimary, fontWeight: '700', fontSize: 18 },
   km: { fontFamily: fonts.serif, paddingHorizontal: 18, marginTop: 6, fontSize: 14, color: colors.textMuted },
   kmStrong: { color: colors.text, fontWeight: '700' },
+  worldTabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 10 },
+  worldTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  worldTabActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  worldGlyph: { fontFamily: fonts.serif, fontSize: 16, color: colors.text },
+  worldName: { fontFamily: fonts.serif, fontSize: 13, color: colors.text },
+  worldTextActive: { color: colors.background },
+  worldLocked: { color: colors.textMuted },
   worldBox: { flex: 1 },
+  residentsButton: {
+    position: 'absolute',
+    top: 8,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  residentsGlyph: { fontFamily: fonts.serif, fontSize: 16, color: colors.primary },
+  residentsText: { fontFamily: fonts.mono, fontSize: 13, color: colors.text },
   toast: {
     position: 'absolute',
     left: 16,

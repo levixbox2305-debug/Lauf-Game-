@@ -1,10 +1,10 @@
-import type { ItemId, World } from '../lib/game';
+import { ITEM_BY_ID, type ItemId, type World, type WorldId } from '../lib/game';
+import { GROUND, TILE, WATER_Z } from './constants';
+import { CITY_MODELS, CITY_WATER, cityGround } from './models-city';
+import { MOUNTAIN_MODELS, MOUNTAIN_WATER, mountainGround } from './models-mountain';
 import { hash, pick, VoxelGrid } from './voxels';
 
-/** One world tile is TILE x TILE voxels; the grass surface sits at z = GROUND - 1. */
-export const TILE = 8;
-export const GROUND = 4;
-export const WATER_Z = 0;
+export { GROUND, TILE, WATER_Z };
 
 const C = {
   grass: ['#7FAE45', '#73A13D', '#8BBA4E', '#6A9638'],
@@ -312,9 +312,11 @@ export const MODELS: Record<ItemId, Model> = {
   fuji,
   goldtorii,
   goldpagoda,
+  ...CITY_MODELS,
+  ...MOUNTAIN_MODELS,
 };
 
-function groundTile(v: VoxelGrid, ox: number, oy: number) {
+function islandGround(v: VoxelGrid, ox: number, oy: number) {
   for (let x = 0; x < TILE; x++) {
     for (let y = 0; y < TILE; y++) {
       const X = ox + x;
@@ -328,12 +330,19 @@ function groundTile(v: VoxelGrid, ox: number, oy: number) {
   }
 }
 
-function waterTile(v: VoxelGrid, ox: number, oy: number) {
+const GROUNDS: Record<WorldId, (v: VoxelGrid, ox: number, oy: number) => void> = {
+  island: islandGround,
+  city: cityGround,
+  mountain: mountainGround,
+};
+const WATERS: Record<WorldId, string[]> = { island: C.water, city: CITY_WATER, mountain: MOUNTAIN_WATER };
+
+function waterTile(v: VoxelGrid, ox: number, oy: number, palette: string[]) {
   for (let x = 0; x < TILE; x++) {
     for (let y = 0; y < TILE; y++) {
       const X = ox + x;
       const Y = oy + y;
-      v.set(X, Y, WATER_Z, hash(X, Y, 3) > 0.93 ? C.foam : pick(C.water, X, Y, 0));
+      v.set(X, Y, WATER_Z, hash(X, Y, 3) > 0.93 ? C.foam : pick(palette, X, Y, 0));
     }
   }
 }
@@ -350,28 +359,33 @@ export function isNearLand(world: World, r: number, c: number): boolean {
 }
 
 /** The island plus a ring of sea around it. */
-export function buildWorldGrid(world: World): VoxelGrid {
+export function buildWorldGrid(world: World, worldId: WorldId = 'island'): VoxelGrid {
   const v = new VoxelGrid();
-  // Sea may extend one tile beyond the grid so the edge of the world never shows.
+  const ground = GROUNDS[worldId];
+  // Water may extend one tile beyond the grid so the edge of the world never shows.
   for (let r = -1; r <= world.size; r++) {
     for (let c = -1; c <= world.size; c++) {
       const inside = r >= 0 && c >= 0 && r < world.size && c < world.size;
       const tile = inside ? world.tiles[r * world.size + c] : null;
       if (tile?.unlocked) {
-        groundTile(v, c * TILE, r * TILE);
+        ground(v, c * TILE, r * TILE);
         if (tile.item) MODELS[tile.item](v, c * TILE, r * TILE);
       } else if (isNearLand(world, r, c)) {
-        waterTile(v, c * TILE, r * TILE);
+        waterTile(v, c * TILE, r * TILE, WATERS[worldId]);
       }
     }
   }
   return v;
 }
 
-/** A single grass tile with one item on it, for the build menu. */
+/** A single ground tile of the item's world with the item on it, for the build menu. */
 export function buildItemGrid(item: ItemId): VoxelGrid {
+  const world = ITEM_BY_ID[item].world;
+  const full = new VoxelGrid();
+  GROUNDS[world === 'any' ? 'island' : world](full, 0, 0);
+  // Only the top layer of ground, so the thumbnail shows the item rather than a block of earth.
   const v = new VoxelGrid();
-  for (let x = 0; x < TILE; x++) for (let y = 0; y < TILE; y++) v.set(x, y, G - 1, pick(C.grass, x, y, 0));
+  for (const [x, y, z, color] of full.entries()) if (z === G - 1) v.set(x, y, z, color);
   MODELS[item](v, 0, 0);
   return v;
 }
