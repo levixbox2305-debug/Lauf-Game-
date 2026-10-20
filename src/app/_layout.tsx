@@ -9,6 +9,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { InkTabBar } from '../components/InkTabBar';
 import type { GameState } from '../lib/game';
 import { loadGame } from '../lib/storage';
+import { CloudProvider } from '../state/CloudProvider';
 import { GameProvider } from '../state/GameProvider';
 import { colors } from '../theme';
 
@@ -22,7 +23,13 @@ export default function RootLayout() {
 
   if (!initial) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.background,
+        }}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -30,14 +37,19 @@ export default function RootLayout() {
 
   return (
     <GameProvider initial={initial}>
-      <StatusBar style="dark" />
-      <Tabs
-        tabBar={(props) => <InkTabBar {...props} />}
-        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.background } }}>
-        <Tabs.Screen name="index" options={{ title: 'Welt' }} />
-        <Tabs.Screen name="run" options={{ title: 'Laufen' }} />
-        <Tabs.Screen name="history" options={{ title: 'Verlauf' }} />
-      </Tabs>
+      <CloudProvider>
+        <StatusBar style="dark" />
+        <Tabs
+          tabBar={(props) => <InkTabBar {...props} />}
+          screenOptions={{
+            headerShown: false,
+            sceneStyle: { backgroundColor: colors.background },
+          }}>
+          <Tabs.Screen name="index" options={{ title: 'Welt' }} />
+          <Tabs.Screen name="run" options={{ title: 'Laufen' }} />
+          <Tabs.Screen name="history" options={{ title: 'Verlauf' }} />
+        </Tabs>
+      </CloudProvider>
     </GameProvider>
   );
 }

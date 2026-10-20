@@ -94,6 +94,8 @@ export type GameState = {
   inventory: Partial<Record<StreakItemId, number>>;
   /** Streak lengths whose reward has already been handed out. */
   claimedStreaks: number[];
+  /** Last change made on this device; decides which world wins when syncing. */
+  updatedAt?: number;
 };
 
 const WORLD_SIZE = 11;
@@ -295,23 +297,21 @@ export function applyRun(state: GameState, run: RunInput): RunOutcome {
     rejectedReason: base.rejectedReason,
   };
 
-  const runs = [record, ...state.runs];
-  const streak = streakInfo(runs, run.endedAt);
+  const withRun = claimStreakRewards({ ...state, energy: state.energy + record.energy, runs: [record, ...state.runs] }, run.endedAt);
+  return { state: withRun.state, record, rewards: withRun.rewards, streak: withRun.streak };
+}
+
+/** Hands out every streak collectible the runs have earned but that wasn't given yet. */
+export function claimStreakRewards(state: GameState, now = Date.now()): { state: GameState; rewards: StreakItemId[]; streak: StreakInfo } {
+  const streak = streakInfo(state.runs, now);
   const rewards = STREAK_ITEMS.filter((i) => i.streakWeeks! <= streak.weeks && !state.claimedStreaks.includes(i.streakWeeks!)).map(
     (i) => i.id as StreakItemId,
   );
+  if (!rewards.length) return { state, rewards, streak };
   const inventory = { ...state.inventory };
   for (const id of rewards) inventory[id] = (inventory[id] ?? 0) + 1;
-
   return {
-    state: {
-      ...state,
-      energy: state.energy + record.energy,
-      runs,
-      inventory,
-      claimedStreaks: [...state.claimedStreaks, ...rewards.map((id) => ITEM_BY_ID[id].streakWeeks!)],
-    },
-    record,
+    state: { ...state, inventory, claimedStreaks: [...state.claimedStreaks, ...rewards.map((id) => ITEM_BY_ID[id].streakWeeks!)] },
     rewards,
     streak,
   };

@@ -24,6 +24,27 @@ Spielstand und Läufe liegen nur auf dem Gerät.
 
 Lokal bauen: `BASE_URL=/laufwelt npm run build:web` → Ordner `dist/`.
 
+## Online-Backup mit Supabase (kostenlos)
+
+Ohne Supabase läuft alles nur lokal. Mit Supabase werden Läufe, Welt und Streaks nach jeder Änderung
+gesichert und zwischen Geräten abgeglichen (Läufe gehen dabei nie verloren; bei Welt/Energie gewinnt der neueste Stand).
+
+1. Auf [supabase.com](https://supabase.com) ein kostenloses Projekt anlegen.
+2. Im Dashboard **SQL Editor → New query**, Inhalt von `supabase/schema.sql` einfügen, **Run**.
+3. **Project Settings → API**: *Project URL* und *anon public key* kopieren
+   (nie den `service_role`-Key verwenden).
+4. Im GitHub-Repo **Settings → Secrets and variables → Actions → Variables**:
+   `SUPABASE_URL` und `SUPABASE_ANON_KEY` anlegen, dann den Workflow neu laufen lassen.
+   Lokal stattdessen `.env.example` nach `.env.local` kopieren und ausfüllen.
+5. In der App: **Verlauf → Backup** → Konto erstellen.
+
+Hinweis: Supabase pausiert kostenlose Projekte nach ca. einer Woche ohne Nutzung; im Dashboard per Klick wieder starten.
+Bis dahin speichert die App lokal weiter und sichert nach, sobald die Verbindung wieder da ist.
+
+## Tests
+
+`npm test` prüft Streak-Regeln und das Zusammenführen von Spielständen.
+
 ## Mit Expo Go starten
 
 1. Auf dem Handy die App **Expo Go** installieren (App Store / Play Store).
@@ -50,4 +71,6 @@ Im Dev-Modus gibt es auf dem Lauf-Tab Buttons für Testläufe.
 | `src/lib/game.ts` | Spielregeln: Gegenstände, Kosten, Level, Energie, Wochenstatistik |
 | `src/lib/tracker.ts` | GPS-Tracking mit Pause, Hintergrund-Task und Filtern |
 | `src/lib/storage.ts` | Speicherung in AsyncStorage |
+| `src/lib/sync.ts`, `src/lib/cloud.ts` | Zusammenführen von Spielständen, Supabase-Anbindung |
+| `src/state/CloudProvider.tsx` | Anmeldung und automatischer Sync |
 | `src/state/GameProvider.tsx` | Spielzustand und Aktionen |

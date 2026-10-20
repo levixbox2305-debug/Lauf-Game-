@@ -15,6 +15,7 @@ import {
   type StreakItemId,
 } from '../lib/game';
 import { saveGame } from '../lib/storage';
+import { mergeStates, sameState } from '../lib/sync';
 
 type GameApi = {
   state: GameState;
@@ -23,6 +24,8 @@ type GameApi = {
   build: (index: number, item: ItemId) => string | null;
   demolish: (index: number) => string | null;
   expand: (index: number) => string | null;
+  /** Folds in a save from the cloud; never loses local runs. */
+  mergeRemote: (remote: GameState) => void;
   reset: () => void;
 };
 
@@ -40,7 +43,7 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
   const addRun = useCallback(
     (run: RunInput) => {
       const outcome = applyRun(state, run);
-      setState(outcome.state);
+      setState({ ...outcome.state, updatedAt: Date.now() });
       return outcome;
     },
     [state],
@@ -66,7 +69,7 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
         tiles[index] = { ...tiles[index], item: itemId };
         const inventory = { ...s.inventory };
         if (item.streakWeeks) inventory[itemId as StreakItemId] = (inventory[itemId as StreakItemId] ?? 1) - 1;
-        return { ...s, energy: s.energy - item.cost, inventory, world: { ...s.world, tiles } };
+        return { ...s, energy: s.energy - item.cost, inventory, world: { ...s.world, tiles }, updatedAt: Date.now() };
       });
       return null;
     },
@@ -84,9 +87,14 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
         // Collectibles go back into the inventory instead of being sold.
         if (item.streakWeeks) {
           const id = item.id as StreakItemId;
-          return { ...s, inventory: { ...s.inventory, [id]: (s.inventory[id] ?? 0) + 1 }, world: { ...s.world, tiles } };
+          return {
+            ...s,
+            inventory: { ...s.inventory, [id]: (s.inventory[id] ?? 0) + 1 },
+            world: { ...s.world, tiles },
+            updatedAt: Date.now(),
+          };
         }
-        return { ...s, energy: s.energy + Math.floor(item.cost * REFUND_RATE), world: { ...s.world, tiles } };
+        return { ...s, energy: s.energy + Math.floor(item.cost * REFUND_RATE), world: { ...s.world, tiles }, updatedAt: Date.now() };
       });
       return null;
     },
@@ -103,18 +111,25 @@ export function GameProvider({ children, initial }: { children: ReactNode; initi
       setState((s) => {
         const tiles = s.world.tiles.slice();
         tiles[index] = { ...tiles[index], unlocked: true };
-        return { ...s, energy: s.energy - cost, world: { ...s.world, tiles } };
+        return { ...s, energy: s.energy - cost, world: { ...s.world, tiles }, updatedAt: Date.now() };
       });
       return null;
     },
     [state],
   );
 
+  const mergeRemote = useCallback((remote: GameState) => {
+    setState((s) => {
+      const merged = mergeStates(s, remote);
+      return sameState(merged, s) ? s : merged;
+    });
+  }, []);
+
   const reset = useCallback(() => setState(createGame()), []);
 
   const api = useMemo(
-    () => ({ state, totalKm: km, addRun, build, demolish, expand, reset }),
-    [state, km, addRun, build, demolish, expand, reset],
+    () => ({ state, totalKm: km, addRun, build, demolish, expand, mergeRemote, reset }),
+    [state, km, addRun, build, demolish, expand, mergeRemote, reset],
   );
 
   return <GameContext.Provider value={api}>{children}</GameContext.Provider>;

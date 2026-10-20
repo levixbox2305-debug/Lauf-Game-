@@ -1,6 +1,7 @@
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CloudBadge } from '../components/AccountSheet';
 import { RouteSketch } from '../components/RouteSketch';
 import { levelFor, weeklyStats } from '../lib/game';
 import { formatDuration, formatKm, formatPace } from '../lib/geo';
@@ -26,7 +27,10 @@ export default function HistoryScreen() {
       keyExtractor={(r) => r.id}
       ListHeaderComponent={
         <View style={{ gap: 10 }}>
-          <Text style={styles.heading}>Verlauf</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.heading}>Verlauf</Text>
+            <CloudBadge />
+          </View>
 
           <View style={styles.levelCard}>
             <View style={styles.levelRow}>
@@ -96,6 +100,7 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: 16, paddingBottom: 24, gap: 10 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heading: { fontFamily: fonts.serif, fontSize: 28, fontWeight: '700', color: colors.text, paddingHorizontal: 2 },
   levelCard: { backgroundColor: colors.ink, borderRadius: 12, padding: 18 },
   levelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
