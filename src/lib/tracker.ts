@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { Platform } from 'react-native';
 
+import type { Route } from './game';
 import { distanceM, type GeoPoint } from './geo';
 import { clearActiveRun, loadActiveRun, saveActiveRun, type ActiveRun, type TrackingMode } from './storage';
 
@@ -13,17 +14,32 @@ const MAX_ACCURACY_M = 35;
 const MIN_STEP_M = 3;
 /** Anything faster between two points is a GPS jump, not running. */
 const MAX_STEP_SPEED_MS = 12;
+/** Saved routes are thinned out to keep storage small. */
+const MAX_ROUTE_POINTS = 400;
 
 type Listener = (run: ActiveRun | null) => void;
 
 const listeners = new Set<Listener>();
 let current: ActiveRun | null = null;
 let watchSub: Location.LocationSubscription | null = null;
-// Background and foreground updates can overlap; process them one after another.
+// Location updates, pause and resume all modify the run; apply them one after another.
 let queue: Promise<void> = Promise.resolve();
 
 function emit() {
   for (const l of listeners) l(current);
+}
+
+function enqueue(change: (run: ActiveRun) => void): Promise<void> {
+  queue = queue.then(async () => {
+    // The background task may run after the app was killed, so fall back to storage.
+    const run = current ?? (await loadActiveRun());
+    if (!run) return;
+    change(run);
+    current = { ...run };
+    await saveActiveRun(current);
+    emit();
+  });
+  return queue;
 }
 
 export function subscribe(listener: Listener): () => void {
@@ -32,20 +48,23 @@ export function subscribe(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
-export function ingest(locations: Location.LocationObject[]): Promise<void> {
-  queue = queue.then(async () => {
-    // The background task may run after the app was killed, so fall back to storage.
-    const run = current ?? (await loadActiveRun());
-    if (!run) return;
+export function elapsedSeconds(run: ActiveRun, now = Date.now()): number {
+  const end = run.pausedAt ?? now;
+  return Math.max(0, (end - run.startedAt - run.pausedMs) / 1000);
+}
 
+export function ingest(locations: Location.LocationObject[]): Promise<void> {
+  return enqueue((run) => {
+    if (run.pausedAt) return;
+    const segment = run.segments[run.segments.length - 1];
     for (const loc of locations) {
       const { accuracy, latitude, longitude } = loc.coords;
       if (accuracy != null && accuracy > MAX_ACCURACY_M) continue;
 
       const point: GeoPoint = { lat: latitude, lon: longitude, t: loc.timestamp };
-      const last = run.points[run.points.length - 1];
+      const last = segment[segment.length - 1];
       if (!last) {
-        run.points.push(point);
+        segment.push(point);
         continue;
       }
       if (point.t <= last.t) continue;
@@ -55,15 +74,23 @@ export function ingest(locations: Location.LocationObject[]): Promise<void> {
       if (step < MIN_STEP_M || step / dt > MAX_STEP_SPEED_MS) continue;
 
       run.distanceM += step;
-      run.points.push(point);
+      segment.push(point);
     }
-
-    current = run;
-    await saveActiveRun(run);
-    emit();
   });
-  return queue;
 }
+
+export const pauseRun = () =>
+  enqueue((run) => {
+    if (!run.pausedAt) run.pausedAt = Date.now();
+  });
+
+export const resumeRun = () =>
+  enqueue((run) => {
+    if (!run.pausedAt) return;
+    run.pausedMs += Date.now() - run.pausedAt;
+    run.pausedAt = null;
+    run.segments.push([]);
+  });
 
 if (Platform.OS !== 'web') {
   TaskManager.defineTask<{ locations: Location.LocationObject[] }>(LOCATION_TASK, async ({ data, error }) => {
@@ -96,8 +123,8 @@ async function startBackgroundUpdates(): Promise<boolean> {
       showsBackgroundLocationIndicator: true,
       foregroundService: {
         notificationTitle: 'Laufwelt',
-        notificationBody: 'Dein Lauf wird aufgezeichnet 🏃',
-        notificationColor: '#2F7D4F',
+        notificationBody: 'Dein Lauf wird aufgezeichnet',
+        notificationColor: '#C8392B',
       },
     });
     return true;
@@ -105,6 +132,19 @@ async function startBackgroundUpdates(): Promise<boolean> {
     // Expo Go cannot run background location; we still track while the app is open.
     console.warn('Hintergrund-Tracking nicht verfügbar, nutze Vordergrund', e);
     return false;
+  }
+}
+
+async function stopLocationUpdates() {
+  watchSub?.remove();
+  watchSub = null;
+  if (Platform.OS === 'web') return;
+  try {
+    if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK)) {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK);
+    }
+  } catch (e) {
+    console.warn('Konnte Standort-Updates nicht stoppen', e);
   }
 }
 
@@ -128,7 +168,7 @@ export async function startRun(): Promise<StartResult> {
     }
   }
 
-  current = { startedAt: Date.now(), distanceM: 0, points: [], mode };
+  current = { startedAt: Date.now(), distanceM: 0, segments: [[]], mode, pausedAt: null, pausedMs: 0 };
   await saveActiveRun(current);
   if (mode === 'foreground') await startForegroundWatch();
   emit();
@@ -147,20 +187,28 @@ export async function restoreRun(): Promise<void> {
   emit();
 }
 
-export type FinishedRun = { startedAt: number; endedAt: number; distanceM: number; durationS: number };
+export type FinishedRun = {
+  startedAt: number;
+  endedAt: number;
+  distanceM: number;
+  durationS: number;
+  route: Route;
+};
 
-export async function stopRun(): Promise<FinishedRun | null> {
-  watchSub?.remove();
-  watchSub = null;
-  if (Platform.OS !== 'web') {
-    try {
-      if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK)) {
-        await Location.stopLocationUpdatesAsync(LOCATION_TASK);
-      }
-    } catch (e) {
-      console.warn('Konnte Standort-Updates nicht stoppen', e);
-    }
-  }
+export function toRoute(segments: GeoPoint[][]): Route {
+  const total = segments.reduce((n, s) => n + s.length, 0);
+  const step = Math.max(1, Math.ceil(total / MAX_ROUTE_POINTS));
+  return segments
+    .filter((s) => s.length > 1)
+    .map((s) => {
+      const thinned = s.filter((_, i) => i % step === 0 || i === s.length - 1);
+      return thinned.map((p) => [Math.round(p.lat * 1e6) / 1e6, Math.round(p.lon * 1e6) / 1e6] as [number, number]);
+    });
+}
+
+/** Stops tracking and returns the run; the caller decides whether to save it. */
+export async function finishRun(): Promise<FinishedRun | null> {
+  await stopLocationUpdates();
   await queue;
 
   const run = current ?? (await loadActiveRun());
@@ -169,11 +217,12 @@ export async function stopRun(): Promise<FinishedRun | null> {
   emit();
   if (!run) return null;
 
-  const endedAt = Date.now();
+  const endedAt = run.pausedAt ?? Date.now();
   return {
     startedAt: run.startedAt,
     endedAt,
     distanceM: run.distanceM,
-    durationS: Math.round((endedAt - run.startedAt) / 1000),
+    durationS: Math.round(elapsedSeconds(run, endedAt)),
+    route: toRoute(run.segments),
   };
 }

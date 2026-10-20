@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { createGame, type GameState } from './game';
+import { createGame, migrate, type GameState } from './game';
 import type { GeoPoint } from './geo';
 
 const GAME_KEY = 'laufwelt:game';
@@ -11,14 +11,17 @@ export type TrackingMode = 'background' | 'foreground';
 export type ActiveRun = {
   startedAt: number;
   distanceM: number;
-  points: GeoPoint[];
+  /** A new segment starts after every pause, so the route doesn't connect across it. */
+  segments: GeoPoint[][];
   mode: TrackingMode;
+  pausedAt: number | null;
+  pausedMs: number;
 };
 
 export async function loadGame(): Promise<GameState> {
   try {
     const raw = await AsyncStorage.getItem(GAME_KEY);
-    if (raw) return JSON.parse(raw) as GameState;
+    if (raw) return migrate(JSON.parse(raw));
   } catch (e) {
     console.warn('Spielstand konnte nicht geladen werden', e);
   }
@@ -31,7 +34,11 @@ export async function saveGame(state: GameState): Promise<void> {
 
 export async function loadActiveRun(): Promise<ActiveRun | null> {
   const raw = await AsyncStorage.getItem(ACTIVE_RUN_KEY);
-  return raw ? (JSON.parse(raw) as ActiveRun) : null;
+  if (!raw) return null;
+  const run = JSON.parse(raw) as ActiveRun & { points?: GeoPoint[] };
+  // Runs saved before pausing existed had a single list of points.
+  if (!run.segments) return { ...run, segments: [run.points ?? []], pausedAt: null, pausedMs: 0 };
+  return run;
 }
 
 export async function saveActiveRun(run: ActiveRun): Promise<void> {

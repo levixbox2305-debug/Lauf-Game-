@@ -1,41 +1,38 @@
 // Game rules: how running turns into energy and what energy can build.
 
 export type ItemId =
-  | 'flowers'
-  | 'tree'
+  | 'path'
+  | 'bamboo'
+  | 'sakura'
+  | 'lantern'
   | 'pine'
-  | 'tent'
-  | 'farm'
-  | 'sheep'
-  | 'house'
-  | 'fountain'
-  | 'mountain'
-  | 'cottage'
-  | 'church'
+  | 'rice'
+  | 'pond'
+  | 'torii'
+  | 'teahouse'
+  | 'pagoda'
   | 'castle';
 
 export type ItemDef = {
   id: ItemId;
   name: string;
-  emoji: string;
   cost: number;
   /** Total kilometres run before this item becomes available. */
   unlockKm: number;
 };
 
 export const ITEMS: ItemDef[] = [
-  { id: 'flowers', name: 'Blumen', emoji: '🌷', cost: 3, unlockKm: 0 },
-  { id: 'tree', name: 'Baum', emoji: '🌳', cost: 5, unlockKm: 0 },
-  { id: 'tent', name: 'Zelt', emoji: '⛺', cost: 10, unlockKm: 0 },
-  { id: 'pine', name: 'Tanne', emoji: '🌲', cost: 6, unlockKm: 1 },
-  { id: 'farm', name: 'Feld', emoji: '🌾', cost: 15, unlockKm: 2 },
-  { id: 'sheep', name: 'Schaf', emoji: '🐑', cost: 12, unlockKm: 3 },
-  { id: 'house', name: 'Haus', emoji: '🏠', cost: 30, unlockKm: 5 },
-  { id: 'fountain', name: 'Brunnen', emoji: '⛲', cost: 25, unlockKm: 8 },
-  { id: 'cottage', name: 'Hof', emoji: '🏡', cost: 50, unlockKm: 12 },
-  { id: 'mountain', name: 'Berg', emoji: '⛰️', cost: 40, unlockKm: 15 },
-  { id: 'church', name: 'Kirche', emoji: '⛪', cost: 120, unlockKm: 25 },
-  { id: 'castle', name: 'Burg', emoji: '🏰', cost: 200, unlockKm: 42.2 },
+  { id: 'path', name: 'Weg', cost: 2, unlockKm: 0 },
+  { id: 'bamboo', name: 'Bambus', cost: 6, unlockKm: 0 },
+  { id: 'sakura', name: 'Sakura', cost: 8, unlockKm: 0 },
+  { id: 'lantern', name: 'Laterne', cost: 15, unlockKm: 1 },
+  { id: 'pine', name: 'Kiefer', cost: 10, unlockKm: 2 },
+  { id: 'rice', name: 'Reisfeld', cost: 15, unlockKm: 3 },
+  { id: 'pond', name: 'Koi-Teich', cost: 25, unlockKm: 5 },
+  { id: 'torii', name: 'Torii', cost: 40, unlockKm: 8 },
+  { id: 'teahouse', name: 'Teehaus', cost: 60, unlockKm: 12 },
+  { id: 'pagoda', name: 'Pagode', cost: 120, unlockKm: 25 },
+  { id: 'castle', name: 'Burg', cost: 200, unlockKm: 42.2 },
 ];
 
 export const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i])) as Record<ItemId, ItemDef>;
@@ -48,6 +45,9 @@ export const REFUND_RATE = 0.5;
 export type Tile = { unlocked: boolean; item: ItemId | null };
 export type World = { size: number; tiles: Tile[] };
 
+/** Route as [lat, lon] pairs, one list per segment between pauses. */
+export type Route = [number, number][][];
+
 export type RunRecord = {
   id: string;
   startedAt: number;
@@ -55,12 +55,13 @@ export type RunRecord = {
   distanceM: number;
   durationS: number;
   energy: number;
+  route?: Route;
   /** Set when the run did not count, e.g. too fast to be on foot. */
   rejectedReason?: string;
 };
 
 export type GameState = {
-  version: 1;
+  version: 2;
   energy: number;
   runs: RunRecord[];
   world: World;
@@ -78,12 +79,40 @@ export function createWorld(): World {
       tiles.push({ unlocked, item: null });
     }
   }
-  tiles[mid * WORLD_SIZE + mid].item = 'tent';
+  tiles[mid * WORLD_SIZE + mid].item = 'sakura';
   return { size: WORLD_SIZE, tiles };
 }
 
 export function createGame(): GameState {
-  return { version: 1, energy: 0, runs: [], world: createWorld() };
+  return { version: 2, energy: 0, runs: [], world: createWorld() };
+}
+
+// Version 1 used emoji items; map them onto the Japanese set, refund what has no equivalent.
+const V1_ITEMS: Record<string, { id: ItemId | null; cost: number }> = {
+  flowers: { id: 'path', cost: 3 },
+  tree: { id: 'sakura', cost: 5 },
+  pine: { id: 'pine', cost: 6 },
+  tent: { id: 'lantern', cost: 10 },
+  farm: { id: 'rice', cost: 15 },
+  sheep: { id: null, cost: 12 },
+  house: { id: 'teahouse', cost: 30 },
+  fountain: { id: 'pond', cost: 25 },
+  cottage: { id: 'teahouse', cost: 50 },
+  mountain: { id: null, cost: 40 },
+  church: { id: 'pagoda', cost: 120 },
+  castle: { id: 'castle', cost: 200 },
+};
+
+export function migrate(raw: { version: number } & Omit<GameState, 'version'>): GameState {
+  if (raw.version === 2) return raw as GameState;
+  let refund = 0;
+  const tiles = raw.world.tiles.map((t) => {
+    if (!t.item) return t;
+    const mapped = V1_ITEMS[t.item];
+    if (!mapped?.id) refund += Math.floor((mapped?.cost ?? 0) * REFUND_RATE);
+    return { ...t, item: mapped?.id ?? null };
+  });
+  return { ...raw, version: 2, energy: raw.energy + refund, world: { ...raw.world, tiles } };
 }
 
 export function energyForRun(distanceM: number, durationS: number): { energy: number; rejectedReason?: string } {
@@ -131,4 +160,33 @@ export function levelFor(km: number): Level {
     if (km >= LEVEL_KM[i]) level = i + 1;
   }
   return { level, currentKm: LEVEL_KM[level - 1], nextKm: LEVEL_KM[level] ?? null };
+}
+
+/** Monday 00:00 of the week containing `time`. */
+export function startOfWeek(time: number): number {
+  const d = new Date(time);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d.getTime();
+}
+
+export type WeekStats = { start: number; km: number; runs: number };
+
+/** Kilometres per week, oldest first, ending with the current week. */
+export function weeklyStats(runs: RunRecord[], weeks: number, now = Date.now()): WeekStats[] {
+  const result: WeekStats[] = [];
+  const current = startOfWeek(now);
+  for (let i = weeks - 1; i >= 0; i--) {
+    const d = new Date(current);
+    d.setDate(d.getDate() - 7 * i);
+    result.push({ start: d.getTime(), km: 0, runs: 0 });
+  }
+  for (const run of runs) {
+    if (run.rejectedReason) continue;
+    const week = result.find((w) => w.start === startOfWeek(run.startedAt));
+    if (!week) continue;
+    week.km += run.distanceM / 1000;
+    week.runs += 1;
+  }
+  return result;
 }

@@ -9,10 +9,10 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import type { GameState } from '../lib/game';
 import { loadGame } from '../lib/storage';
 import { GameProvider } from '../state/GameProvider';
-import { colors } from '../theme';
+import { colors, fonts } from '../theme';
 
-function TabIcon({ emoji }: { emoji: string }) {
-  return <Text style={{ fontSize: 22 }}>{emoji}</Text>;
+function TabIcon({ glyph, color }: { glyph: string; color: string }) {
+  return <Text style={{ fontFamily: fonts.serif, fontSize: 20, color }}>{glyph}</Text>;
 }
 
 export default function RootLayout() {
@@ -36,16 +36,25 @@ export default function RootLayout() {
       <StatusBar style="dark" />
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.textMuted,
-          headerStyle: { backgroundColor: colors.background },
-          headerShadowVisible: false,
-          headerTitleStyle: { fontWeight: '700', color: colors.text },
+          headerShown: false,
+          tabBarActiveTintColor: colors.background,
+          tabBarInactiveTintColor: colors.inkSoft,
+          tabBarStyle: { backgroundColor: colors.ink, borderTopWidth: 0 },
+          tabBarLabelStyle: { fontFamily: fonts.serif },
           sceneStyle: { backgroundColor: colors.background },
         }}>
-        <Tabs.Screen name="index" options={{ title: 'Welt', tabBarIcon: () => <TabIcon emoji="🏝️" /> }} />
-        <Tabs.Screen name="run" options={{ title: 'Laufen', tabBarIcon: () => <TabIcon emoji="🏃" /> }} />
-        <Tabs.Screen name="history" options={{ title: 'Verlauf', tabBarIcon: () => <TabIcon emoji="📜" /> }} />
+        <Tabs.Screen
+          name="index"
+          options={{ title: 'Welt', tabBarIcon: ({ focused }) => <TabIcon glyph="島" color={focused ? colors.sakura : colors.inkSoft} /> }}
+        />
+        <Tabs.Screen
+          name="run"
+          options={{ title: 'Laufen', tabBarIcon: ({ focused }) => <TabIcon glyph="走" color={focused ? colors.sakura : colors.inkSoft} /> }}
+        />
+        <Tabs.Screen
+          name="history"
+          options={{ title: 'Verlauf', tabBarIcon: ({ focused }) => <TabIcon glyph="記" color={focused ? colors.sakura : colors.inkSoft} /> }}
+        />
       </Tabs>
     </GameProvider>
   );

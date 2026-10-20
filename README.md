@@ -1,14 +1,14 @@
-# Laufwelt 🏝️🏃
+# Laufwelt 走る世界
 
-Lauf-Tracker, bei dem jeder Kilometer deine eigene Insel wachsen lässt.
+Lauf-Tracker, so simpel wie eine normale Running-App – aber jeder Kilometer lässt deine eigene japanische Voxel-Insel wachsen.
 
 ## So funktioniert's
 
-- **Laufen**: GPS misst Strecke, Zeit und Pace. Pro km gibt es 10 ⚡ Energie.
-- **Welt**: Mit Energie Land gewinnen (jedes Stück wird teurer) und Bäume, Felder, Schafe, Häuser … bauen.
-  Neue Gebäude werden über die Gesamt-km freigeschaltet – die Burg 🏰 erst nach einem Marathon (42,2 km).
-- **Verlauf**: Alle Läufe und dein Level.
-- Läufe mit Ø über 22 km/h werden nicht gewertet (Rad/Auto/GPS-Fehler).
+- **Laufen**: Start → Pause/Weiter → Beenden. Danach Zusammenfassung mit Route, Zeit und Pace; Speichern oder Verwerfen.
+  Pro km gibt es 10 ⚡. Läufe mit Ø über 22 km/h werden nicht gewertet (Rad/Auto/GPS-Fehler).
+- **Welt**: Mit Energie Land gewinnen (jedes Stück wird teurer) und bauen: Weg, Bambus, Sakura, Laterne, Kiefer,
+  Reisfeld, Koi-Teich, Torii, Teehaus, Pagode – und die Burg erst nach einem Marathon (42,2 km).
+- **Verlauf**: Level, Kilometer pro Woche, alle Läufe mit Routen-Skizze.
 
 ## Starten
 
@@ -17,17 +17,26 @@ npm install
 npx expo start
 ```
 
-- **Expo Go** (QR-Code scannen): funktioniert, aber GPS nur bei geöffneter App.
-- **Development Build** (`npx expo run:android` / `eas build --profile development`): auch Tracking im Hintergrund bei gesperrtem Bildschirm.
-- Im Dev-Modus gibt es auf dem Lauf-Tab einen Button „Testlauf simulieren“.
+Skia (für die Voxel-Welt) ist nicht in Expo Go enthalten – du brauchst einen **Development Build**:
+
+```bash
+npx expo run:android        # lokal mit Android Studio / Gerät
+# oder in der Cloud:
+npx eas-cli@latest build --profile development --platform android
+```
+
+Der Development Build kann auch im Hintergrund tracken (gesperrter Bildschirm).
+Im Dev-Modus gibt es auf dem Lauf-Tab „Testlauf simulieren“.
 
 ## Aufbau
 
 | Pfad | Inhalt |
 | --- | --- |
 | `src/app/` | Screens (Expo Router Tabs): Welt, Laufen, Verlauf |
-| `src/lib/game.ts` | Spielregeln: Gegenstände, Kosten, Level, Energie |
-| `src/lib/tracker.ts` | GPS-Tracking (Hintergrund-Task + Vordergrund-Fallback) und Filter |
+| `src/world/voxels.ts` | Voxel-Engine: Gitter, isometrische Projektion, Mesh für Skia |
+| `src/world/models.ts` | Voxel-Modelle (Sakura, Torii, Pagode …) und Aufbau der Insel |
+| `src/components/VoxelWorld.tsx` | Zeichnet die Welt mit Skia, Tippen → Kachel |
+| `src/lib/game.ts` | Spielregeln: Gegenstände, Kosten, Level, Energie, Wochenstatistik |
+| `src/lib/tracker.ts` | GPS-Tracking mit Pause, Hintergrund-Task und Filtern |
 | `src/lib/storage.ts` | Speicherung in AsyncStorage |
-| `src/components/IsoWorld.tsx` | Isometrische Insel als SVG |
 | `src/state/GameProvider.tsx` | Spielzustand und Aktionen |

@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# copied from node_modules by scripts/copy-canvaskit.js
+public/canvaskit.wasm

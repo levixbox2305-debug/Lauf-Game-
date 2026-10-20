@@ -1,20 +1,24 @@
-export const colors = {
-  background: '#F4F1E8',
-  surface: '#FFFFFF',
-  text: '#1F2A24',
-  textMuted: '#6B756F',
-  primary: '#2F7D4F',
-  primaryDark: '#21603B',
-  danger: '#C2483D',
-  energy: '#E8A317',
-  border: '#E2DDCF',
+import { Platform } from 'react-native';
 
-  sea: '#4BA3C7',
-  shallowWater: '#6BBBD8',
-  foam: '#E8F6FB',
-  grass: '#7CC46A',
-  grassAlt: '#72BA60',
-  grassEdge: '#5FA24F',
-  cliffLeft: '#9C6B3F',
-  cliffRight: '#7D5330',
+// Washi paper, sumi ink, vermilion and sakura.
+export const colors = {
+  background: '#F3EBDD',
+  surface: '#FBF6EC',
+  border: '#E1D6C2',
+  text: '#2B2A28',
+  textMuted: '#8A7F6E',
+  ink: '#2B2A28',
+  inkSoft: '#B9AE9C',
+  primary: '#C8392B',
+  primaryDark: '#A52E22',
+  onPrimary: '#FBEFE6',
+  sakura: '#E9677F',
+  matcha: '#6E8B3D',
+  energy: '#C8392B',
+  sea: '#3E7FA8',
+};
+
+export const fonts = {
+  serif: Platform.select({ ios: 'Hiragino Mincho ProN', android: 'serif', default: 'Georgia, "Noto Serif JP", serif' }),
+  mono: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'ui-monospace, Menlo, monospace' }),
 };
