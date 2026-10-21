@@ -14,6 +14,10 @@ Lauf-Tracker, so simpel wie eine normale Running-App – aber jeder Kilometer l�
   Teemeisterin Hana zieht ein). Jeder passende Lauf zählt automatisch. Die Bewohner leben nach echter Uhrzeit:
   morgens spazieren, tagsüber arbeiten, abends treffen, nachts schlafen (der Nachtwächter umgekehrt).
   Tippe auf eine Figur, um zu sehen, was sie gerade macht. Übersicht: 住-Knopf in der Welt.
+  Tagsüber sind sie ständig unterwegs; nachts schlafen sie im Haus und über dem Dach steigen „z z z“ auf.
+- **Himmel**: Sonnenaufgang, Tag, Sonnenuntergang und Nacht mit Mond und Sternen nach echter Uhrzeit;
+  nachts wird die Welt dunkler und Fenster und Laternen leuchten.
+- **Karte**: mit zwei Fingern zoomen, mit einem Finger verschieben, oder die Knöpfe ＋ / － / ◎ (im Browser auch Mausrad).
 - **Streaks**: Eine Woche zählt ab 2 Läufen (je mind. 1 km). Jede Woche in Folge gibt +10 % Energie (max. +50 %),
   und bei 1, 2, 4, 8, 12, 26 und 52 Wochen gibt es seltene Sammelobjekte, die man nicht kaufen kann:
   Glocke, Koinobori, Steingarten, Winkekatze, Fuji, Gold-Torii, Gold-Pagode.

@@ -22,16 +22,49 @@ eq('path length is shortest', findPath(w, at(6, 6), [at(4, 5)])?.length, 3);
 eq('buildings block the way', findPath(place(place(w, 4, 5, 'pagoda'), 5, 4, 'pagoda'), at(6, 6), spotsNear(w, ['teahouse'])), null);
 eq('locked land is not walkable', findPath(w, at(5, 5), [at(0, 0)]), null);
 
-// Walk to work at noon and stop there.
+// At noon she goes to work and makes tea there between her rounds.
 const rand = () => 0.3;
 let walker = spawnWalker(w, 'tea', rand)!;
 walker = { ...walker, x: 6.5, y: 6.5 };
 let now = 0;
-for (let i = 0; i < 80; i++) { now += 100; walker = stepWalker(walker, w, 'island', 12, now, 0.1, rand); }
-const tile = Math.floor(walker.y) * 11 + Math.floor(walker.x);
-eq('arrives next to the teahouse', [at(4, 5), at(5, 4)].includes(tile), true);
-eq('working when there', [walker.phase, walker.path.length, walker.doing], ['work', 0, 'bereitet Matcha zu']);
+let reachedWork = false;
+let madeTea = false;
+for (let i = 0; i < 300; i++) {
+  now += 100;
+  walker = stepWalker(walker, w, 'island', 12, now, 0.1, rand);
+  const tile = Math.floor(walker.y) * 11 + Math.floor(walker.x);
+  if ([at(4, 5), at(5, 4)].includes(tile) && !walker.path.length) reachedWork = true;
+  if (walker.doing === 'bereitet Matcha zu') madeTea = true;
+}
+eq('reaches a spot next to the teahouse', reachedWork, true);
+eq('makes tea while working', [walker.phase, madeTea], ['work', true]);
 // At night she goes home and disappears inside.
 for (let i = 0; i < 200; i++) { now += 1000; walker = stepWalker(walker, w, 'island', 23, now, 1, rand); }
 eq('sleeps at night', [walker.phase, walker.visible], ['home', false]);
+eq('sleeps in the teahouse', walker.sleepTile, at(4, 4));
+// During the day nobody stays put for long.
+// Seeded, so the result is the same on every run.
+let seed = 42;
+const seededRand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+for (const [name, world] of [['small island', w], ['big island', bigWorld()]] as const) {
+  let moving = 0;
+  let w2 = spawnWalker(world, 'tea', seededRand)!;
+  for (let i = 0; i < 3000; i++) {
+    now += 100;
+    const before = w2.x + w2.y;
+    w2 = stepWalker(w2, world, 'island', 12, now, 0.1, seededRand);
+    if (w2.x + w2.y !== before) moving++;
+  }
+  console.log(`     ${name}: walking ${Math.round((moving / 3000) * 100)} % of the time`);
+  eq(`walks most of the day (${name})`, moving / 3000 > 0.45, true);
+}
+function bigWorld(): World {
+  // 9x9 land with the teahouse in a corner, so walks are longer.
+  const base = createWorld();
+  return { ...base, tiles: base.tiles.map((t, i) => {
+    const r = Math.floor(i / 11), c = i % 11;
+    const inside = r >= 1 && r <= 9 && c >= 1 && c <= 9;
+    return { unlocked: inside, item: r === 1 && c === 1 ? 'teahouse' : null };
+  }) };
+}
 process.exit(fails ? 1 : 0);

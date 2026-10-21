@@ -17,6 +17,8 @@ export type Walker = {
   until: number;
   /** False while sleeping indoors. */
   visible: boolean;
+  /** Building tile the walker sleeps in, for the z-z-z above its roof. */
+  sleepTile?: number;
   /** Walking animation frame. */
   frame: 0 | 1;
   doing: string;
@@ -115,32 +117,64 @@ export function spawnWalker(world: World, id: CharacterId, rand: () => number): 
   };
 }
 
+/** A random walkable tile within `radius` steps of one of the spots, so people potter about nearby. */
+function wanderAround(world: World, spots: number[], radius: number, rand: () => number): number[] {
+  if (!spots.length) return [];
+  const center = spots[Math.floor(rand() * spots.length)];
+  const cr = Math.floor(center / world.size);
+  const cc = center % world.size;
+  const near = world.tiles
+    .map((_, i) => i)
+    .filter((i) => isWalkable(world, i) && Math.abs(Math.floor(i / world.size) - cr) + Math.abs((i % world.size) - cc) <= radius);
+  return near.length ? [near[Math.floor(rand() * near.length)]] : [center];
+}
+
 function pickGoal(world: World, worldId: WorldId, def: CharacterDef, phase: Phase, rand: () => number): number[] {
   const all = world.tiles.map((_, i) => i).filter((i) => isWalkable(world, i));
   const random = () => (all.length ? [all[Math.floor(rand() * all.length)]] : []);
+  // Most of the time they head for their spot; otherwise they wander around it, so nobody stands still for long.
+  const atOrAround = (spots: number[]) => (rand() < 0.6 ? spots : wanderAround(world, spots, 2, rand));
   switch (phase) {
     case 'home':
       return spotsNear(world, [def.home]);
     case 'work': {
       const spots = spotsNear(world, def.work);
-      return spots.length ? spots : spotsNear(world, [def.home]);
+      return atOrAround(spots.length ? spots : spotsNear(world, [def.home]));
     }
     case 'social': {
       const spots = spotsNear(world, SOCIAL[worldId]);
       // Pick one meeting place so people gather instead of spreading out.
-      return spots.length ? [spots[Math.floor(rand() * spots.length)]] : random();
+      return spots.length ? atOrAround([spots[Math.floor(rand() * spots.length)]]) : random();
     }
     case 'stroll':
       return random();
   }
 }
 
+/** Short stops during the day keep everyone moving; home is the night's sleep. */
 const STAY_MS: Record<Phase, [number, number]> = {
   home: [60_000, 90_000],
-  work: [20_000, 45_000],
-  social: [15_000, 30_000],
-  stroll: [3_000, 8_000],
+  work: [700, 2_200],
+  social: [700, 1_800],
+  stroll: [300, 900],
 };
+
+/** The tile of the nearest building of this type, where a sleeping walker is tucked in. */
+function nearestItemTile(world: World, from: number, item: ItemId): number | undefined {
+  const fr = Math.floor(from / world.size);
+  const fc = from % world.size;
+  let best: number | undefined;
+  let bestDist = Infinity;
+  world.tiles.forEach((t, i) => {
+    if (!t.unlocked || t.item !== item) return;
+    const d = Math.abs(Math.floor(i / world.size) - fr) + Math.abs((i % world.size) - fc);
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
+  });
+  return best;
+}
 
 /** Advances one walker by `dt` seconds. Returns a new object; the input stays untouched. */
 export function stepWalker(
@@ -180,6 +214,7 @@ export function stepWalker(
       next.until = now + min + rand() * (max - min);
       next.frame = 0;
       next.visible = next.phase !== 'home';
+      next.sleepTile = next.phase === 'home' ? nearestItemTile(world, tileOf(world, next), def.home) : undefined;
       next.doing = next.phase === 'home' ? (def.nocturnal ? 'schläft tagsüber' : 'schläft') : def.doing[next.phase];
     }
     return next;
@@ -189,18 +224,26 @@ export function stepWalker(
   // Stay put until the visit is over, unless the time of day has moved on.
   if (now < next.until && phase === next.phase) return next;
 
-  const targets = pickGoal(world, worldId, def, phase, rand);
-  const route = targets.length ? findPath(world, tileOf(world, next), targets) : null;
+  const here = tileOf(world, next);
+  let targets = pickGoal(world, worldId, def, phase, rand);
+  // Always go somewhere new during the day; picking the tile you're on means standing still again.
+  if (phase !== 'home') {
+    const elsewhere = targets.filter((t) => t !== here);
+    targets = elsewhere.length ? elsewhere : wanderAround(world, [here], 2, rand).filter((t) => t !== here);
+  }
+  const route = targets.length ? findPath(world, here, targets) : null;
   next.phase = phase;
   if (route && route.length) {
     next.path = route;
     next.visible = true;
+    next.sleepTile = undefined;
     next.doing = phase === 'home' ? 'geht nach Hause' : phase === 'work' ? 'ist auf dem Weg zur Arbeit' : 'ist unterwegs';
   } else {
     // Already there, or no way there: just spend some time here.
     const [min, max] = STAY_MS[phase];
     next.until = now + min + rand() * (max - min);
     next.visible = phase !== 'home';
+    next.sleepTile = phase === 'home' ? nearestItemTile(world, tileOf(world, next), def.home) : undefined;
     next.doing = phase === 'home' ? 'schläft' : def.doing[phase];
   }
   return next;
