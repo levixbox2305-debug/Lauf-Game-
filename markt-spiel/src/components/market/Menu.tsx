@@ -316,9 +316,11 @@ function Profile({ save }: { save: MarketSave }) {
           </View>
         ))}
       </Section>
-      <Text style={styles.footnote}>
-        Ein Fan-Spiel. {STORE_NAME} ist eine Marke ihrer Inhaberin; dieses Spiel steht in keiner Verbindung zu ihr.
-      </Text>
+      {STORE_NAME === 'REWE' && (
+        <Text style={styles.footnote}>
+          Ein Fan-Spiel. {STORE_NAME} ist eine Marke ihrer Inhaberin; dieses Spiel steht in keiner Verbindung zu ihr.
+        </Text>
+      )}
     </>
   );
 }

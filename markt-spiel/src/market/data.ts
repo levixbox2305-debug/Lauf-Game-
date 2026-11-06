@@ -1,7 +1,7 @@
 /** Everything the market game is made of: departments, shop, quests, ranks and badges. */
 
-/** The store's name, shown on the facade and in texts. */
-export const STORE_NAME = 'REWE';
+/** The store's name, shown on the facade and in texts. A build can set its own with EXPO_PUBLIC_STORE_NAME. */
+export const STORE_NAME = process.env.EXPO_PUBLIC_STORE_NAME || 'REWE';
 
 export type CategoryId = 'o' | 'b' | 'k' | 't' | 'g' | 'd' | 's' | 'n';
 
