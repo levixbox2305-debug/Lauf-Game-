@@ -67,7 +67,6 @@ export default function RootLayout() {
           <Tabs.Screen name="index" options={{ title: 'Welt' }} />
           <Tabs.Screen name="run" options={{ title: 'Laufen' }} />
           <Tabs.Screen name="history" options={{ title: 'Verlauf' }} />
-          <Tabs.Screen name="market" options={{ title: 'Markt' }} />
         </Tabs>
       </CloudProvider>
     </GameProvider>

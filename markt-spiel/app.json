@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Markt-Held",
+    "slug": "markt-held",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zitronsystems.marktheld"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#C8102E",
+        "foregroundImage": "./assets/icon.png"
+      },
+      "package": "com.zitronsystems.marktheld"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-router"],
+    "scheme": "marktheld"
+  }
+}

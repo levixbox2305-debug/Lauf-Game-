@@ -89,7 +89,7 @@ const STAFF_LINES: Record<StaffId, string[]> = {
 
 type DialogState = { id: number; dialog: Dialog; line: number; cursor: number };
 
-export default function MarketScreen() {
+export default function GameScreen() {
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
   const [save, setSave] = useState<MarketSave | null>(null);
@@ -587,7 +587,9 @@ export default function MarketScreen() {
         </View>
       </View>
 
-      <Controls onDir={pressDir} onA={pressA} onB={pressB} onStart={toggleMenu} />
+      <View style={{ paddingBottom: insets.bottom, backgroundColor: retro.shell }}>
+        <Controls onDir={pressDir} onA={pressA} onB={pressB} onStart={toggleMenu} />
+      </View>
 
       {menu && (
         <Menu

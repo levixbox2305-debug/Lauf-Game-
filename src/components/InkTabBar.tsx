@@ -12,7 +12,6 @@ const TABS: Record<string, { glyph: string; label: string }> = {
   index: { glyph: '島', label: 'Welt' },
   run: { glyph: '走', label: 'Laufen' },
   history: { glyph: '記', label: 'Verlauf' },
-  market: { glyph: '店', label: 'Markt' },
 };
 
 const BAR_HEIGHT = 62;

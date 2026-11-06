@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { createSave, migrate, type MarketSave } from './logic';
 
-const KEY = 'laufwelt:markt';
+const KEY = 'marktheld:save';
 
 export async function loadMarket(now: number): Promise<MarketSave> {
   try {

@@ -23,26 +23,6 @@ Lauf-Tracker, so simpel wie eine normale Running-App – aber jeder Kilometer l�
   Glocke, Koinobori, Steingarten, Winkekatze, Fuji, Gold-Torii, Gold-Pagode.
 - **Verlauf**: Level, Kilometer pro Woche, alle Läufe mit Routen-Skizze.
 
-## Markt-Spiel (Tab 店 Markt)
-
-Ein 2D-Retro-Rollenspiel im Stil alter Handheld-Spiele: Du fängst als Azubi in einem großen Supermarkt an
-und arbeitest dich zur Marktleitung hoch. Eigener Spielstand, unabhängig von den Läufen.
-
-- **Steuerung**: Steuerkreuz laufen (tippen = drehen, halten = gehen), **A** sprechen/benutzen, **B** halten = rennen,
-  **MENÜ** = Quests, Shop, Tasche, Orden, Profil. Im Browser: Pfeiltasten/WASD, Leertaste/Enter = A, Shift = B, M = Menü.
-- **Aufgaben im Markt**: Kisten im Lager holen und leere Regalplätze (gelbes Preisschild) auffüllen, Pfützen wischen,
-  Kund:innen mit „?“ die richtige Abteilung nennen, an der Kasse das Rückgeld ausrechnen, MHD-Kontrolle am Kühl-/Tiefkühlregal („!“),
-  Pfandautomat leeren, wenn er voll ist. Kasse, Fragen und MHD laufen als kleine Duelle mit Geduldsbalken – schnelle Antworten geben mehr.
-- **Hauptgeschichte**: 12 Schritte mit Marktleiterin Frau Berger, vom ersten Arbeitstag bis zur Schichtleitung.
-- **Tages- und Wochenquests**: jeden Tag 3 neue, jeden Montag 3 neue, plus Bonus, wenn alle abgeholt sind (Schwarzes Brett im Pausenraum oder Menü).
-- **Item-Shop** (Automat im Pausenraum oder Menü): täglich wechselnde Tagesangebote mit Rabatt, ein seltenes Wochen-Highlight
-  (Goldene Weste, Regenbogen-Weste, Krone) und das feste Sortiment: Rollwagen/Hubwagen (mehr Kisten tragen), Turnschuhe,
-  Pager (zeigt die nächste Aufgabe), Profi-Scanner, Gold-Namensschild, Kaffee/Müsliriegel (doppelte Taler/EP), Glückskeks.
-- **Fortschritt**: Level und Ränge (Azubi → Mitarbeiter:in → Schichtleitung → Abteilungsleitung → Marktleitung → Legende),
-  8 Orden, Tagesbonus mit Streak.
-
-Der Name des Markts steht an einer Stelle: `STORE_NAME` in `src/market/data.ts`.
-
 ## Als Web-App aufs iPhone (kostenlos)
 
 Bei jedem Push auf `main` baut GitHub die Web-Version und veröffentlicht sie auf GitHub Pages
@@ -80,7 +60,7 @@ alle Sammelobjekte, 99.999 ⚡, Testlauf-Buttons). Sie wird nie mit Supabase ges
 
 ## Tests
 
-`npm test` prüft Streak-Regeln, Challenges, den Tagesablauf der Bewohner, das Zusammenführen von Spielständen und die Regeln des Markt-Spiels.
+`npm test` prüft Streak-Regeln, Challenges, den Tagesablauf der Bewohner und das Zusammenführen von Spielständen.
 
 ## Mit Expo Go starten
 
@@ -113,6 +93,3 @@ Im Dev-Modus gibt es auf dem Lauf-Tab Buttons für Testläufe.
 | `src/lib/sync.ts`, `src/lib/cloud.ts` | Zusammenführen von Spielständen, Supabase-Anbindung |
 | `src/state/CloudProvider.tsx` | Anmeldung und automatischer Sync |
 | `src/state/GameProvider.tsx` | Spielzustand und Aktionen |
-| `src/app/market.tsx` | Markt-Spiel: Bildschirm, Steuerung, Aufgaben |
-| `src/market/` | Markt-Spiel: Karte, Regeln (Quests, Shop, Story), lebender Markt, Pixel-Art, Zeichnen mit Skia |
-| `src/components/market/` | Spielfeld, Steuerkreuz, Dialogbox, Duell-Bildschirm, Menü |
